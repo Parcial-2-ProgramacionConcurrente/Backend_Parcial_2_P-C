@@ -106,11 +106,13 @@ package service {
         - FabricaGaussRepository fabricaGaussRepository
         - GaltonBoardService galtonBoardService
         - MaquinaWorkerService maquinaWorkerService
+        - RabbitMQService rabbitMQService
         + iniciarProduccionCompleta(): Mono<Void> ' Método principal
     }
 
     class GaltonBoardService {
         - GaltonBoardRepository galtonBoardRepository
+        - RabbitMQService rabbitMQService
         + simularCaidaDeBolas(Integer numBolas): Mono<Void>
         + actualizarDistribucion(GaltonBoard, Map<String, Integer>): Mono<Void>
         + mostrarDistribucion(Integer galtonBoardId): Mono<DistribucionDTO>
@@ -119,6 +121,7 @@ package service {
     class MaquinaWorkerService {
         - MaquinaWorkerRepository maquinaWorkerRepository
         - ComponenteWorkerService componenteWorkerService
+        - RabbitMQService rabbitMQService
         + iniciarTrabajo(Maquina, GaltonBoard): Mono<Void>
         + ensamblarMaquina(MaquinaWorker): Mono<Void>
         + calcularDistribucion(MaquinaWorker): Mono<Map<String, Integer>>
@@ -126,8 +129,14 @@ package service {
 
     class ComponenteWorkerService {
         - ComponenteRepository componenteRepository
+        - RabbitMQService rabbitMQService
         + calcularValor(ComponenteWorker): Mono<Double>
         + registrarValor(Componente, double valor): Mono<Void>
+    }
+
+    class RabbitMQService {
+        + enviarMensaje(String queue, String mensaje): Mono<Void>
+        + recibirMensaje(String queue): Mono<String>
     }
 
     ' Relaciones de servicios con descripciones
@@ -136,6 +145,9 @@ package service {
     MaquinaWorkerService --> ComponenteWorkerService : "Asigna cálculo de valores a ComponenteWorkers"
     MaquinaWorkerService --> MaquinaWorker : "Crea y ejecuta MaquinaWorkers para ensamblaje"
     ComponenteWorkerService --> Componente : "Guarda valores calculados en los componentes"
+    FabricaGaussService --> RabbitMQService : "Envía mensajes para sincronización"
+    GaltonBoardService --> RabbitMQService : "Envía y recibe mensajes de sincronización"
+    MaquinaWorkerService --> RabbitMQService : "Coordina ensamblaje usando colas de mensajes"
 }
 
 ' === PAQUETE AOP ===

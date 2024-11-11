@@ -1,9 +1,9 @@
 package org.main_java.parcial_2_concurrente.controller;
 
-import org.main_java.parcial_2_concurrente.model.AuthResponseDTO;
-import org.main_java.parcial_2_concurrente.model.LoginRequestDTO;
-import org.main_java.parcial_2_concurrente.model.RegisterRequestDTO;
-import org.main_java.parcial_2_concurrente.service.AuthService;
+import org.main_java.parcial_2_concurrente.model.userDTO.AuthResponseDTO;
+import org.main_java.parcial_2_concurrente.model.userDTO.LoginRequestDTO;
+import org.main_java.parcial_2_concurrente.model.userDTO.RegisterRequestDTO;
+import org.main_java.parcial_2_concurrente.service.userService.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

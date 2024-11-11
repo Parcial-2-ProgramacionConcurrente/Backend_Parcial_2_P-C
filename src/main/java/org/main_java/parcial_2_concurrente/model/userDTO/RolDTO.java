@@ -1,4 +1,4 @@
-package org.main_java.parcial_2_concurrente.model;
+package org.main_java.parcial_2_concurrente.model.userDTO;
 
 import lombok.Data;
 import lombok.Getter;

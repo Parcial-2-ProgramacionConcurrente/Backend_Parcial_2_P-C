@@ -1,13 +1,13 @@
-package org.main_java.parcial_2_concurrente.service;
+package org.main_java.parcial_2_concurrente.service.userService;
 
-import org.main_java.parcial_2_concurrente.domain.Credenciales;
-import org.main_java.parcial_2_concurrente.domain.Usuario;
-import org.main_java.parcial_2_concurrente.model.AuthResponseDTO;
-import org.main_java.parcial_2_concurrente.model.LoginRequestDTO;
-import org.main_java.parcial_2_concurrente.model.RegisterRequestDTO;
-import org.main_java.parcial_2_concurrente.repos.CredencialesRepository;
-import org.main_java.parcial_2_concurrente.repos.RolRepository;
-import org.main_java.parcial_2_concurrente.repos.UsuarioRepository;
+import org.main_java.parcial_2_concurrente.domain.user.Credenciales;
+import org.main_java.parcial_2_concurrente.domain.user.Usuario;
+import org.main_java.parcial_2_concurrente.model.userDTO.AuthResponseDTO;
+import org.main_java.parcial_2_concurrente.model.userDTO.LoginRequestDTO;
+import org.main_java.parcial_2_concurrente.model.userDTO.RegisterRequestDTO;
+import org.main_java.parcial_2_concurrente.repos.user.CredencialesRepository;
+import org.main_java.parcial_2_concurrente.repos.user.RolRepository;
+import org.main_java.parcial_2_concurrente.repos.user.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

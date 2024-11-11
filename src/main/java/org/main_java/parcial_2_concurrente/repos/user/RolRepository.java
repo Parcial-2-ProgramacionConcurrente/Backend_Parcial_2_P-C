@@ -1,8 +1,8 @@
-package org.main_java.parcial_2_concurrente.repos;
+package org.main_java.parcial_2_concurrente.repos.user;
 
 
 
-import org.main_java.parcial_2_concurrente.domain.Rol;
+import org.main_java.parcial_2_concurrente.domain.user.Rol;
 import org.springframework.data.mongodb.repository.ReactiveMongoRepository;
 import reactor.core.publisher.Mono;
 

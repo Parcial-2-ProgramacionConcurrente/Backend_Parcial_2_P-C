@@ -1,8 +1,8 @@
 package org.main_java.parcial_2_concurrente.controller;
 
-import org.main_java.parcial_2_concurrente.domain.Usuario;
-import org.main_java.parcial_2_concurrente.model.UsuarioDTO;
-import org.main_java.parcial_2_concurrente.service.UsuarioService;
+import org.main_java.parcial_2_concurrente.domain.user.Usuario;
+import org.main_java.parcial_2_concurrente.model.userDTO.UsuarioDTO;
+import org.main_java.parcial_2_concurrente.service.userService.UsuarioService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

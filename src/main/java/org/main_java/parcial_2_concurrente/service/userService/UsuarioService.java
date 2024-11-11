@@ -1,8 +1,8 @@
-package org.main_java.parcial_2_concurrente.service;
+package org.main_java.parcial_2_concurrente.service.userService;
 
-import org.main_java.parcial_2_concurrente.domain.Usuario;
-import org.main_java.parcial_2_concurrente.model.UsuarioDTO;
-import org.main_java.parcial_2_concurrente.repos.UsuarioRepository;
+import org.main_java.parcial_2_concurrente.domain.user.Usuario;
+import org.main_java.parcial_2_concurrente.model.userDTO.UsuarioDTO;
+import org.main_java.parcial_2_concurrente.repos.user.UsuarioRepository;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;

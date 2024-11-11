@@ -1,4 +1,4 @@
-package org.main_java.parcial_2_concurrente.domain;
+package org.main_java.parcial_2_concurrente.domain.user;
 
 import lombok.Getter;
 import lombok.Setter;

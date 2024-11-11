@@ -1,16 +1,14 @@
 package org.main_java.parcial_2_concurrente;
 
-import org.main_java.parcial_2_concurrente.domain.Rol;
-import org.main_java.parcial_2_concurrente.model.RegisterRequestDTO;
-import org.main_java.parcial_2_concurrente.repos.RolRepository;
-import org.main_java.parcial_2_concurrente.service.AuthService;
+import org.main_java.parcial_2_concurrente.domain.user.Rol;
+import org.main_java.parcial_2_concurrente.model.userDTO.RegisterRequestDTO;
+import org.main_java.parcial_2_concurrente.repos.user.RolRepository;
+import org.main_java.parcial_2_concurrente.service.userService.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import reactor.core.publisher.Mono;
-
-import java.util.*;
 
 @SpringBootApplication
 public class Backend_Parcial_2 implements CommandLineRunner {
