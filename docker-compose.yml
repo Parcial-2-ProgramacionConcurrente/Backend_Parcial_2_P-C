@@ -2,7 +2,7 @@ services:
   mongo:
     image: mongo:6.0
     environment:
-      - MONGO_INITDB_DATABASE=Tema4-Sistema-Monitoreo-Jurassic
+      - MONGO_INITDB_DATABASE=Backend_Parcial_2_P-C
       - MONGO_INITDB_ROOT_USERNAME=root
       - MONGO_INITDB_ROOT_PASSWORD=P4ssword!
     ports:
