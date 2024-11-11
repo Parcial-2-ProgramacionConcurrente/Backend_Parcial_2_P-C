@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.Maquina;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import reactor.core.publisher.Mono;
@@ -19,12 +20,11 @@ public class Componente {
     private String id;
     private String tipo;
     private double valorCalculado;
+    private Maquina maquina;
 
     public Mono<Void> registrarValor(double valor) {
         this.valorCalculado = valor;
         return Mono.empty();
     }
-
-    // Getters y Setters
 }
 

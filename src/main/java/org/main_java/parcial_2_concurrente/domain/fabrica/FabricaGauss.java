@@ -9,7 +9,6 @@ import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import reactor.core.publisher.Mono;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 
 @Getter
@@ -22,7 +21,6 @@ public class FabricaGauss {
     @Id
     private String id;
     private String nombre;
-    private OffsetDateTime dateCreated;
     private List<Maquina> maquinas;
 
     public Mono<Void> iniciarProduccion() {
