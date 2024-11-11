@@ -1,0 +1,102 @@
+@startuml
+!define RECTANGLE class
+skinparam backgroundColor #F5F5F5
+skinparam shadowing false
+skinparam class {
+    BackgroundColor #ADD8E6
+    BorderColor #2E8B57
+    FontSize 12
+    FontStyle bold
+}
+skinparam arrow {
+    FontSize 11
+}
+
+' === PAQUETE DOMAIN ===
+package domain {
+    class FabricaGauss {
+        + Integer id
+        + String nombre
+        + OffsetDateTime dateCreated
+        + iniciarProduccion(): Mono<Void>
+        + detenerSimulacion(): Mono<Void>
+    }
+
+    class GaltonBoard {
+        + Integer id
+        + int numBolas
+        + int numContenedores
+        + String estado
+        + Distribucion distribucion
+        + simularCaidaDeBolas(): Mono<Void>
+    }
+
+    class Distribucion {
+        + Integer id
+        + Map<String, Integer> datos
+        + int numBolas
+        + int numContenedores
+        + agregarBola(int contenedorId): Mono<Void>
+        + obtenerDistribucion(): Mono<Map<String, Integer>>
+    }
+
+    class GaltonBoardStatus {
+        + Integer id
+        + String estado
+        + Map<String, Integer> distribucionActual
+    }
+
+    class Maquina {
+        + Integer id
+        + String tipo
+        + int numeroComponentesRequeridos
+        + List<Componente> componentes
+        + Map<String, Integer> distribucion
+        + String estado
+        + GaltonBoard galtonBoard
+        + ensamblarMaquina(): Mono<Void>
+    }
+
+    class MaquinaDistribucionNormal {
+        + double media
+        + double desviacionEstandar
+        + int maximoValor
+    }
+
+    Maquina <|-- MaquinaDistribucionNormal
+
+    class Componente {
+        + Integer id
+        + String tipo
+        + double valorCalculado
+        + registrarValor(double valor): Mono<Void>
+    }
+
+    class ComponenteWorker {
+        + Integer id
+        + Componente componente
+        + MaquinaWorker maquinaWorker
+        + GaltonBoard galtonBoard
+        + boolean trabajoCompletado
+        + run(): Mono<Void>
+        + calcularValor(): Mono<Double>
+    }
+
+    class MaquinaWorker {
+        + Integer id
+        + List<ComponenteWorker> componenteWorkers
+        + Maquina maquina
+        + ExecutorService executor
+        + run(): Mono<Void>
+    }
+
+    FabricaGauss "1" --> "1..*" GaltonBoard
+    GaltonBoard "1" --> "1" Distribucion
+    GaltonBoard "1" --> "1" GaltonBoardStatus
+    FabricaGauss "1" --> "1..*" Maquina
+    Maquina "1" --> "1..*" Componente
+    Maquina "1" --> "1..*" MaquinaWorker
+    MaquinaWorker "1" --> "1..*" ComponenteWorker
+    Maquina "1" --> "1" GaltonBoard
+}
+@enduml

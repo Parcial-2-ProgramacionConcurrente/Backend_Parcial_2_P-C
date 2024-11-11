@@ -1,108 +1,233 @@
 @startuml
-
-class Componente {
-    - String tipo
-    - double valorCalculado
-    + getTipo(): String
-    + getValorCalculado(): double
+!define RECTANGLE class
+skinparam backgroundColor #F5F5F5
+skinparam shadowing false
+skinparam class {
+    BackgroundColor #ADD8E6
+    BorderColor #2E8B57
+    FontSize 12
+    FontStyle bold
+}
+skinparam arrow {
+    FontSize 11
 }
 
-class ComponenteWorker {
-    - Componente componente
-    - GaltonBoard galtonBoard
-    + run()
-    + calcularValor()
+' === PAQUETE DOMAIN ===
+package domain {
+    class FabricaGauss {
+        + Integer id
+        + String nombre
+        + OffsetDateTime dateCreated
+        + iniciarProduccion(): Mono<Void>
+        + detenerSimulacion(): Mono<Void>
+    }
+
+    class GaltonBoard {
+        + Integer id
+        + int numBolas
+        + int numContenedores
+        + String estado
+        + Distribucion distribucion
+        + simularCaidaDeBolas(): Mono<Void>
+    }
+
+    class Distribucion {
+        + Integer id
+        + Map<String, Integer> datos
+        + int numBolas
+        + int numContenedores
+        + agregarBola(int contenedorId): Mono<Void>
+        + obtenerDistribucion(): Mono<Map<String, Integer>>
+    }
+
+    class GaltonBoardStatus {
+        + Integer id
+        + String estado
+        + Map<String, Integer> distribucionActual
+    }
+
+    class Maquina {
+        + Integer id
+        + String tipo
+        + int numeroComponentesRequeridos
+        + List<Componente> componentes
+        + Map<String, Integer> distribucion
+        + String estado
+        + GaltonBoard galtonBoard
+        + ensamblarMaquina(): Mono<Void>
+    }
+
+    class MaquinaDistribucionNormal {
+        + double media
+        + double desviacionEstandar
+        + int maximoValor
+    }
+
+    Maquina <|-- MaquinaDistribucionNormal
+
+    class Componente {
+        + Integer id
+        + String tipo
+        + double valorCalculado
+        + registrarValor(double valor): Mono<Void>
+    }
+
+    class ComponenteWorker {
+        + Integer id
+        + Componente componente
+        + MaquinaWorker maquinaWorker
+        + GaltonBoard galtonBoard
+        + boolean trabajoCompletado
+        + run(): Mono<Void>
+        + calcularValor(): Mono<Double>
+    }
+
+    class MaquinaWorker {
+        + Integer id
+        + List<ComponenteWorker> componenteWorkers
+        + Maquina maquina
+        + ExecutorService executor
+        + run(): Mono<Void>
+    }
+
+    FabricaGauss "1" --> "1..*" GaltonBoard
+    GaltonBoard "1" --> "1" Distribucion
+    GaltonBoard "1" --> "1" GaltonBoardStatus
+    FabricaGauss "1" --> "1..*" Maquina
+    Maquina "1" --> "1..*" Componente
+    Maquina "1" --> "1..*" MaquinaWorker
+    MaquinaWorker "1" --> "1..*" ComponenteWorker
+    Maquina "1" --> "1" GaltonBoard
 }
 
-class FabricaGauss {
-    - String nombre
-    - List<EstacionTrabajo> estaciones
-    + iniciarProduccion()
-    + detenerProduccion()
+' === PAQUETE SERVICE ===
+package service {
+    class FabricaGaussService {
+        - FabricaGaussRepository fabricaGaussRepository
+        - GaltonBoardService galtonBoardService
+        - MaquinaWorkerService maquinaWorkerService
+        + iniciarProduccionCompleta(): Mono<Void> ' Método principal
+    }
+
+    class GaltonBoardService {
+        - GaltonBoardRepository galtonBoardRepository
+        + simularCaidaDeBolas(Integer numBolas): Mono<Void>
+        + actualizarDistribucion(GaltonBoard, Map<String, Integer>): Mono<Void>
+        + mostrarDistribucion(Integer galtonBoardId): Mono<DistribucionDTO>
+    }
+
+    class MaquinaWorkerService {
+        - MaquinaWorkerRepository maquinaWorkerRepository
+        - ComponenteWorkerService componenteWorkerService
+        + iniciarTrabajo(Maquina, GaltonBoard): Mono<Void>
+        + ensamblarMaquina(MaquinaWorker): Mono<Void>
+        + calcularDistribucion(MaquinaWorker): Mono<Map<String, Integer>>
+    }
+
+    class ComponenteWorkerService {
+        - ComponenteRepository componenteRepository
+        + calcularValor(ComponenteWorker): Mono<Double>
+        + registrarValor(Componente, double valor): Mono<Void>
+    }
+
+    ' Relaciones de servicios con descripciones
+    FabricaGaussService --> GaltonBoardService : "Llama a simularCaidaDeBolas() para iniciar la simulación de bolas"
+    FabricaGaussService --> MaquinaWorkerService : "Inicia el ensamblaje de la máquina llamando a iniciarTrabajo()"
+    MaquinaWorkerService --> ComponenteWorkerService : "Asigna cálculo de valores a ComponenteWorkers"
+    MaquinaWorkerService --> MaquinaWorker : "Crea y ejecuta MaquinaWorkers para ensamblaje"
+    ComponenteWorkerService --> Componente : "Guarda valores calculados en los componentes"
 }
 
-class Maquina {
-    - List<Componente> componentes
-    - int id
-    + ensamblar(List<Componente> componentes)
-    + validarComponentes(): boolean
+' === PAQUETE AOP ===
+package aop {
+    class ErrorHandlingAspect {
+        + aroundAllMethods(): void
+    }
+
+    class SynchronizationAspect {
+        + ensureConsistency(): void
+    }
+
+    class PerformanceMonitoringAspect {
+        + monitorPerformance(): void
+    }
+
+    ErrorHandlingAspect --> service.FabricaGaussService : "Manejo de errores en producción"
+    ErrorHandlingAspect --> service.GaltonBoardService : "Manejo de errores en simulación"
+    ErrorHandlingAspect --> service.MaquinaWorkerService : "Manejo de errores en ensamblaje"
+    SynchronizationAspect --> service.FabricaGaussService : "Sincronización de producción"
+    SynchronizationAspect --> service.GaltonBoardService : "Sincronización de simulación"
+    SynchronizationAspect --> service.MaquinaWorkerService : "Sincronización de ensamblaje"
+    PerformanceMonitoringAspect --> service.FabricaGaussService : "Monitoreo de rendimiento en producción"
 }
 
-class MaquinaDistribucionBinomial {
-    + numEnsayos: int
-    + probabilidadExito: double
-    + galtonBoard: GaltonBoard
-    + estado: String
+' === PAQUETE CONTROLLER ===
+package controller {
+    class FabricaGaussController {
+        + iniciarProduccionCompleta(): Mono<Void>
+    }
+
+    FabricaGaussController --> FabricaGaussService : "Controla la iniciación completa de la producción"
 }
 
-class MaquinaDistribucionCustom {
-    + probabilidadesPersonalizadas: Map<String, Integer>
-    + galtonBoard: GaltonBoard
-    + estado: String
+' === PAQUETE REPOSITORY ===
+package repository {
+    interface FabricaGaussRepository {
+        + save(FabricaGauss): Mono<FabricaGauss>
+        + findById(String): Mono<FabricaGauss>
+    }
+
+    interface GaltonBoardRepository {
+        + save(GaltonBoard): Mono<GaltonBoard>
+        + findById(String): Mono<GaltonBoard>
+    }
+
+    interface DistribucionRepository {
+        + save(Distribucion): Mono<Distribucion>
+        + findById(String): Mono<Distribucion>
+    }
+
+    interface MaquinaWorkerRepository {
+        + save(MaquinaWorker): Mono<MaquinaWorker>
+        + findById(String): Mono<MaquinaWorker>
+    }
+
+    interface ComponenteRepository {
+        + save(Componente): Mono<Componente>
+        + findById(String): Mono<Componente>
+    }
 }
 
-class MaquinaDistribucionExponencial {
-    + lambda: double
-    + maximoValor: int
-    + galtonBoard: GaltonBoard
-    + estado: String
+' === PAQUETE DTO ===
+package dto {
+    class FabricaGaussDTO {
+        - Integer id
+        - String nombre
+        - OffsetDateTime dateCreated
+    }
+
+    class GaltonBoardDTO {
+        - Integer id
+        - int numBolas
+        - int numContenedores
+        - String estado
+        - Map<String, Integer> distribucion
+    }
+
+    class MaquinaDTO {
+        - Integer id
+        - String tipo
+        - String estado
+        - Map<String, Integer> distribucion
+    }
+
+    class DistribucionDTO {
+        - Map<String, Integer> contenedores
+    }
 }
 
-class MaquinaDistribucionGeometrica {
-    + probabilidadExito: double
-    + maximoEnsayos: int
-    + galtonBoard: GaltonBoard
-    + estado: String
-}
-
-class MaquinaDistribucionNormal {
-    + media: double
-    + desviacionEstandar: double
-    + maximoValor: int
-    + galtonBoard: GaltonBoard
-    + estado: String
-}
-
-class MaquinaDistribucionPoisson {
-    + lambda: double
-    + maximoValor: int
-    + galtonBoard: GaltonBoard
-    + estado: String
-}
-
-class MaquinaDistribucionUniforme {
-    + numValores: int
-    + galtonBoard: GaltonBoard
-    + estado: String
-}
-
-class GaltonBoard {
-    - int numBolas
-    - int numContenedores
-    - estado: String
-    + simularCaidaBolas()
-    + mostrarDistribucion()
-}
-
-' Relaciones
-Maquina <|-- MaquinaDistribucionBinomial
-Maquina <|-- MaquinaDistribucionGeometrica
-Maquina <|-- MaquinaDistribucionExponencial
-Maquina <|-- MaquinaDistribucionPoisson
-Maquina <|-- MaquinaDistribucionNormal
-Maquina <|-- MaquinaDistribucionUniforme
-Maquina <|-- MaquinaDistribucionCustom
-
-Maquina --> Componente : "1..n"  : contiene
-FabricaGauss --> MaquinaWorker : "1..n" : gestiona
-MaquinaWorker --> ComponenteWorker : "1..n" : gestiona
-ComponenteWorker --> Componente : "1" : procesa
-MaquinaDistribucionBinomial --> GaltonBoard : "1" : usa
-MaquinaDistribucionGeometrica --> GaltonBoard : "1" : usa
-MaquinaDistribucionExponencial --> GaltonBoard : "1" : usa
-MaquinaDistribucionPoisson --> GaltonBoard : "1" : usa
-MaquinaDistribucionNormal --> GaltonBoard : "1" : usa
-MaquinaDistribucionUniforme --> GaltonBoard : "1" : usa
-MaquinaDistribucionCustom --> GaltonBoard : "1" : usa
-
+dto.FabricaGaussDTO <.. domain.FabricaGauss
+dto.GaltonBoardDTO <.. domain.GaltonBoard
+dto.MaquinaDTO <.. domain.Maquina
+dto.DistribucionDTO <.. domain.Distribucion
 @enduml

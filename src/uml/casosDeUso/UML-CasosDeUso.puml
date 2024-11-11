@@ -1,57 +1,43 @@
 @startuml
-!define RECTANGLE class
+actor Usuario
+actor Sistema
 
-skinparam backgroundColor #F5F5F5
-skinparam shadowing false
-skinparam usecase {
-    BackgroundColor #ADD8E6
-    BorderColor #2E8B57
-    ArrowColor #4682B4
-    FontColor Black
-    FontSize 14
-    FontStyle bold
-}
-skinparam actor {
-    BackgroundColor White
-    BorderColor Black
-    FontSize 12
-    FontStyle bold
+rectangle Sistema {
+    usecase "Iniciar Producción Completa" as UC_IniciarProduccion
+    usecase "Detener Producción" as UC_DetenerProduccion
+    usecase "Simular Caída de Bolas en Galton Board" as UC_SimularCaidaBolas
+    usecase "Ensamblar Máquina" as UC_EnsamblarMaquina
+    usecase "Calcular Distribución" as UC_CalcularDistribucion
+    usecase "Obtener Estado de Distribución" as UC_ObtenerEstadoDistribucion
+    usecase "Visualizar Estado de Máquina" as UC_VerEstadoMaquina
+    usecase "Registrar Componente de Máquina" as UC_RegistrarComponente
+    usecase "Gestionar Errores en Producción" as UC_GestionarErrores
+    usecase "Monitorear Rendimiento de Producción" as UC_MonitorearRendimiento
 }
 
-actor "Usuario" as User
-actor "Sistema" as SimulationSystem
+' Relaciones del Usuario
+Usuario --> UC_IniciarProduccion : <<Trigger>>
+Usuario --> UC_DetenerProduccion : <<Trigger>>
+Usuario --> UC_SimularCaidaBolas : <<Trigger>>
+Usuario --> UC_EnsamblarMaquina : <<Trigger>>
+Usuario --> UC_ObtenerEstadoDistribucion : <<Request>>
+Usuario --> UC_VerEstadoMaquina : <<Request>>
 
-rectangle "Interfaz de Usuario" as UserInterface {
-    usecase "Ver Estado de Máquinas" as ViewMachineState
-    usecase "Ver Distribución de Resultados" as ViewResults
-    usecase "Gestionar Simulación" as ManageSimulation
-}
+' Casos de uso principales
+UC_IniciarProduccion -right-> UC_SimularCaidaBolas : <<include>>
+UC_IniciarProduccion -down-> UC_EnsamblarMaquina : <<include>>
+UC_SimularCaidaBolas --> UC_CalcularDistribucion : <<include>>
+UC_EnsamblarMaquina --> UC_RegistrarComponente : <<include>>
+UC_CalcularDistribucion --> UC_ObtenerEstadoDistribucion : <<include>>
 
-rectangle "Operaciones del Sistema" as SystemOperations {
-    usecase "Crear Galton Boards" as CreateBoards
-    usecase "Crear Máquinas de Distribución" as CreateMachines
-    usecase "Simular Caída de Bolas" as SimulateBalls
-    usecase "Actualizar Distribución en Tiempo Real" as UpdateDistribution
-    usecase "Persistir Estado de Simulación" as SaveState
-    usecase "Detener Producción" as StopProduction
-}
+' Detener producción
+UC_DetenerProduccion --> UC_IniciarProduccion : <<exclude>>
 
-User -down-> ManageSimulation : "Controlar Simulación"
-User -down-> ViewMachineState : "Monitorizar Máquinas"
-User -down-> ViewResults : "Ver Resultados"
-User -down-> StopSimulation : "Detener Simulación"
-
-SimulationSystem -down-> CreateBoards : "Iniciar Boards"
-SimulationSystem -down-> CreateMachines : "Crear Máquinas"
-SimulationSystem -down-> SimulateBalls : "Simular Distribución"
-SimulationSystem -down-> UpdateDistribution : "Actualizar Datos"
-SimulationSystem -down-> SaveState : "Guardar Estado"
-SimulationSystem -down-> StopProduction : "Parar Producción"
-
-ManageSimulation --> SimulateBalls : "Inicia Simulación"
-ManageSimulation --> StopProduction : "Detiene Producción"
-ViewMachineState --> UpdateDistribution : "Datos en Tiempo Real"
-ViewResults --> SaveState : "Consulta Datos Guardados"
-StopSimulation --> StopProduction : "Finalizar Simulación"
+' Extensiones para manejo de errores y monitoreo
+UC_IniciarProduccion -[#red,thickness=2]-> UC_GestionarErrores : <<extend>>
+UC_SimularCaidaBolas -[#red,thickness=2]-> UC_GestionarErrores : <<extend>>
+UC_EnsamblarMaquina -[#red,thickness=2]-> UC_GestionarErrores : <<extend>>
+UC_IniciarProduccion -[#green,thickness=2]-> UC_MonitorearRendimiento : <<extend>>
+UC_SimularCaidaBolas -[#green,thickness=2]-> UC_MonitorearRendimiento : <<extend>>
 
 @enduml
