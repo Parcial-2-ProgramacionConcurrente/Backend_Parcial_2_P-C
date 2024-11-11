@@ -24,15 +24,4 @@ public class MaquinaWorker {
     private String id;
     private List<ComponenteWorker> componenteWorkers;
     private Maquina maquina;
-    private ExecutorService executor = Executors.newFixedThreadPool(4);
-
-    public Mono<Void> run() {
-        // Ejecuta cada ComponenteWorker en paralelo para ensamblar la máquina
-        return Mono.when(componenteWorkers.stream()
-                .map(ComponenteWorker::run)
-                .toList()
-        );
-    }
-
-    // Getters y Setters
 }

@@ -3,6 +3,7 @@ package org.main_java.parcial_2_concurrente;
 import org.main_java.parcial_2_concurrente.domain.user.Rol;
 import org.main_java.parcial_2_concurrente.model.userDTO.RegisterRequestDTO;
 import org.main_java.parcial_2_concurrente.repos.user.RolRepository;
+import org.main_java.parcial_2_concurrente.service.fabricaService.FabricaGaussService;
 import org.main_java.parcial_2_concurrente.service.userService.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -17,7 +18,8 @@ public class Backend_Parcial_2 implements CommandLineRunner {
     private RolRepository rolRepository;
     @Autowired
     private AuthService authService;
-
+    @Autowired
+    private FabricaGaussService fabricaGaussService;
 
     public static void main(String[] args) {
         SpringApplication.run(Backend_Parcial_2.class, args);
@@ -62,7 +64,6 @@ public class Backend_Parcial_2 implements CommandLineRunner {
                 .doOnSuccess(unused -> System.out.println("Todos los usuarios han sido registrados"));
     }
 
-
     private Mono<Void> registrarNuevoUsuario(AuthService authService, String nombre, String apellido1, String apellido2,
                                              String correo, int telefono, String direccion, String contrasena, String rolNombre) {
 
@@ -81,17 +82,15 @@ public class Backend_Parcial_2 implements CommandLineRunner {
                 .then();
     }
 
-
-
-
     @Override
     public void run(String... args) throws Exception {
 
         initRoles()
                 .then(initUsers())
+                .then(fabricaGaussService.iniciarProduccionCompleta()) // Llamada a iniciarProduccionCompleta
                 .subscribe(
-                        unused -> System.out.println("Inicialización completa"),
-                        error -> System.err.println("Error en la inicialización: " + error.getMessage())
+                        unused -> System.out.println("Inicialización completa y producción iniciada"),
+                        error -> System.err.println("Error en la inicialización o producción: " + error.getMessage())
                 );
     }
 }

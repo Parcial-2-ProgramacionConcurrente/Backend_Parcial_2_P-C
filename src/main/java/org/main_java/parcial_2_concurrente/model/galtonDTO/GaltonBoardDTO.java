@@ -1,6 +1,7 @@
 package org.main_java.parcial_2_concurrente.model.galtonDTO;
 
 import lombok.*;
+import org.main_java.parcial_2_concurrente.domain.galton.Distribucion;
 
 import java.util.Map;
 
@@ -15,6 +16,7 @@ public class GaltonBoardDTO {
     private int numBolas;
     private int numContenedores;
     private String estado;
-    private Map<String, Integer> distribucion;
+    private Distribucion distribucion;
+    private String fabricaId;
 }
 
