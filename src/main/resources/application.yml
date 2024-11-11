@@ -1,0 +1,62 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://root:P4ssword!@localhost:27017/BackendSpringboot
+      database: BackendSpringboot
+
+  # Configuración de RabbitMQ para la conexión de mensajería
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+    virtual-host: /
+    listener:
+      simple:
+        concurrency: 3 # Ajusta según tus necesidades
+        max-concurrency: 10
+
+  # Configuración de JWT para autenticación y autorización
+  jwt:
+    secret: securesecretkey # Cambia esta clave a una clave segura.
+    expiration: 86400000 # Duración del token en milisegundos (24 horas)
+
+# Configuración del servidor
+server:
+  port: 8080 # El backend corre en el puerto 8080
+
+# Configuración de CORS para permitir la comunicación desde el frontend (puerto 8082)
+# La configuración de CORS se realiza principalmente en el archivo de configuración de seguridad
+cors:
+  allowed-origins: "http://localhost:8082"
+  allowed-methods: "*"
+  allowed-headers: "*"
+  allow-credentials: true
+
+# Configuración de manejo de errores
+error:
+  handling:
+    http-status-in-json-response: true
+    exception-logging: NO_LOGGING
+    full-stacktrace-http-statuses: 5xx
+    log-levels:
+      5xx: ERROR
+
+# Configuración de logging
+logging:
+  level:
+    root: INFO
+    org.springframework: INFO
+    org.mongodb.driver: INFO # Log específico para MongoDB
+    org.springframework.amqp: WARN # Nivel de log de RabbitMQ para reducir la verbosidad
+    com.myproyect.springboot: DEBUG
+
+# Configuración de Spring Actuator para exponer todos los endpoints de gestión
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always

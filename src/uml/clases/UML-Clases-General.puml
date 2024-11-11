@@ -1,0 +1,108 @@
+@startuml
+
+class Componente {
+    - String tipo
+    - double valorCalculado
+    + getTipo(): String
+    + getValorCalculado(): double
+}
+
+class ComponenteWorker {
+    - Componente componente
+    - GaltonBoard galtonBoard
+    + run()
+    + calcularValor()
+}
+
+class FabricaGauss {
+    - String nombre
+    - List<EstacionTrabajo> estaciones
+    + iniciarProduccion()
+    + detenerProduccion()
+}
+
+class Maquina {
+    - List<Componente> componentes
+    - int id
+    + ensamblar(List<Componente> componentes)
+    + validarComponentes(): boolean
+}
+
+class MaquinaDistribucionBinomial {
+    + numEnsayos: int
+    + probabilidadExito: double
+    + galtonBoard: GaltonBoard
+    + estado: String
+}
+
+class MaquinaDistribucionCustom {
+    + probabilidadesPersonalizadas: Map<String, Integer>
+    + galtonBoard: GaltonBoard
+    + estado: String
+}
+
+class MaquinaDistribucionExponencial {
+    + lambda: double
+    + maximoValor: int
+    + galtonBoard: GaltonBoard
+    + estado: String
+}
+
+class MaquinaDistribucionGeometrica {
+    + probabilidadExito: double
+    + maximoEnsayos: int
+    + galtonBoard: GaltonBoard
+    + estado: String
+}
+
+class MaquinaDistribucionNormal {
+    + media: double
+    + desviacionEstandar: double
+    + maximoValor: int
+    + galtonBoard: GaltonBoard
+    + estado: String
+}
+
+class MaquinaDistribucionPoisson {
+    + lambda: double
+    + maximoValor: int
+    + galtonBoard: GaltonBoard
+    + estado: String
+}
+
+class MaquinaDistribucionUniforme {
+    + numValores: int
+    + galtonBoard: GaltonBoard
+    + estado: String
+}
+
+class GaltonBoard {
+    - int numBolas
+    - int numContenedores
+    - estado: String
+    + simularCaidaBolas()
+    + mostrarDistribucion()
+}
+
+' Relaciones
+Maquina <|-- MaquinaDistribucionBinomial
+Maquina <|-- MaquinaDistribucionGeometrica
+Maquina <|-- MaquinaDistribucionExponencial
+Maquina <|-- MaquinaDistribucionPoisson
+Maquina <|-- MaquinaDistribucionNormal
+Maquina <|-- MaquinaDistribucionUniforme
+Maquina <|-- MaquinaDistribucionCustom
+
+Maquina --> Componente : "1..n"  : contiene
+FabricaGauss --> MaquinaWorker : "1..n" : gestiona
+MaquinaWorker --> ComponenteWorker : "1..n" : gestiona
+ComponenteWorker --> Componente : "1" : procesa
+MaquinaDistribucionBinomial --> GaltonBoard : "1" : usa
+MaquinaDistribucionGeometrica --> GaltonBoard : "1" : usa
+MaquinaDistribucionExponencial --> GaltonBoard : "1" : usa
+MaquinaDistribucionPoisson --> GaltonBoard : "1" : usa
+MaquinaDistribucionNormal --> GaltonBoard : "1" : usa
+MaquinaDistribucionUniforme --> GaltonBoard : "1" : usa
+MaquinaDistribucionCustom --> GaltonBoard : "1" : usa
+
+@enduml

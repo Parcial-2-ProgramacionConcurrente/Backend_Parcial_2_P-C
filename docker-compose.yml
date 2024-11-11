@@ -1,0 +1,14 @@
+services:
+  mongo:
+    image: mongo:6.0
+    environment:
+      - MONGO_INITDB_DATABASE=Tema4-Sistema-Monitoreo-Jurassic
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=P4ssword!
+    ports:
+      - 27017:27017
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:

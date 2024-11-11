@@ -1,0 +1,57 @@
+@startuml
+!define RECTANGLE class
+
+skinparam backgroundColor #F5F5F5
+skinparam shadowing false
+skinparam usecase {
+    BackgroundColor #ADD8E6
+    BorderColor #2E8B57
+    ArrowColor #4682B4
+    FontColor Black
+    FontSize 14
+    FontStyle bold
+}
+skinparam actor {
+    BackgroundColor White
+    BorderColor Black
+    FontSize 12
+    FontStyle bold
+}
+
+actor "Usuario" as User
+actor "Sistema" as SimulationSystem
+
+rectangle "Interfaz de Usuario" as UserInterface {
+    usecase "Ver Estado de Máquinas" as ViewMachineState
+    usecase "Ver Distribución de Resultados" as ViewResults
+    usecase "Gestionar Simulación" as ManageSimulation
+}
+
+rectangle "Operaciones del Sistema" as SystemOperations {
+    usecase "Crear Galton Boards" as CreateBoards
+    usecase "Crear Máquinas de Distribución" as CreateMachines
+    usecase "Simular Caída de Bolas" as SimulateBalls
+    usecase "Actualizar Distribución en Tiempo Real" as UpdateDistribution
+    usecase "Persistir Estado de Simulación" as SaveState
+    usecase "Detener Producción" as StopProduction
+}
+
+User -down-> ManageSimulation : "Controlar Simulación"
+User -down-> ViewMachineState : "Monitorizar Máquinas"
+User -down-> ViewResults : "Ver Resultados"
+User -down-> StopSimulation : "Detener Simulación"
+
+SimulationSystem -down-> CreateBoards : "Iniciar Boards"
+SimulationSystem -down-> CreateMachines : "Crear Máquinas"
+SimulationSystem -down-> SimulateBalls : "Simular Distribución"
+SimulationSystem -down-> UpdateDistribution : "Actualizar Datos"
+SimulationSystem -down-> SaveState : "Guardar Estado"
+SimulationSystem -down-> StopProduction : "Parar Producción"
+
+ManageSimulation --> SimulateBalls : "Inicia Simulación"
+ManageSimulation --> StopProduction : "Detiene Producción"
+ViewMachineState --> UpdateDistribution : "Datos en Tiempo Real"
+ViewResults --> SaveState : "Consulta Datos Guardados"
+StopSimulation --> StopProduction : "Finalizar Simulación"
+
+@enduml
