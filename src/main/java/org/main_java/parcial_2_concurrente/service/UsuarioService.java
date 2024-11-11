@@ -1,5 +1,6 @@
 package org.main_java.parcial_2_concurrente.service;
 
+import org.main_java.parcial_2_concurrente.domain.Usuario;
 import org.main_java.parcial_2_concurrente.model.UsuarioDTO;
 import org.main_java.parcial_2_concurrente.repos.UsuarioRepository;
 import org.springframework.stereotype.Service;
