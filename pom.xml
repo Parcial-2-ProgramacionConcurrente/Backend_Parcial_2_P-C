@@ -11,7 +11,7 @@
     </parent>
 
     <groupId>org.main_java</groupId>
-    <artifactId>Tema4-Sistema-Monitoreo-Jurassic</artifactId>
+    <artifactId>Backend_Parcial_2_P-C</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <packaging>war</packaging>
     <name>Springboot</name>
