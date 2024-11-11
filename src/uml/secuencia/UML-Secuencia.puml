@@ -1,0 +1,66 @@
+@startuml
+actor Usuario
+participant FabricaGaussController
+participant FabricaGaussService
+participant GaltonBoardService
+participant MaquinaWorkerService
+participant ComponenteWorkerService
+participant GaltonBoardRepository
+participant DistribucionRepository
+participant MaquinaWorkerRepository
+participant ComponenteRepository
+
+Usuario -> FabricaGaussController : iniciarProduccionCompleta()
+FabricaGaussController -> FabricaGaussService : iniciarProduccionCompleta()
+
+group Simulación de Caída de Bolas
+    FabricaGaussService -> GaltonBoardService : simularCaidaDeBolas()
+    GaltonBoardService -> GaltonBoardRepository : findById(galtonBoardId)
+    GaltonBoardRepository --> GaltonBoardService : GaltonBoard
+
+    GaltonBoardService -> DistribucionRepository : save(Distribucion inicial)
+    DistribucionRepository --> GaltonBoardService : Distribucion
+
+    loop Para cada bola en numBolas
+        GaltonBoardService -> Distribucion : agregarBola(contenedorId)
+        Distribucion -> DistribucionRepository : save(Distribucion actualizada)
+    end loop
+
+    GaltonBoardService -> FabricaGaussService : actualizarDistribucion()
+end group
+
+group Actualizar Distribución
+    FabricaGaussService -> GaltonBoardService : actualizarDistribucion(GaltonBoard, Map<String, Integer>)
+    GaltonBoardService -> DistribucionRepository : save(nuevaDistribucion)
+    DistribucionRepository --> GaltonBoardService : Distribucion actualizada
+end group
+
+group Ensamblar Máquina
+    FabricaGaussService -> MaquinaWorkerService : iniciarTrabajo(maquina, galtonBoard)
+
+    MaquinaWorkerService -> MaquinaWorkerRepository : save(nuevo MaquinaWorker)
+    MaquinaWorkerRepository --> MaquinaWorkerService : MaquinaWorker
+
+    MaquinaWorkerService -> MaquinaWorker : ensamblarMaquina()
+
+    loop Para cada Componente
+        MaquinaWorker -> ComponenteWorkerService : calcularValor(ComponenteWorker)
+        ComponenteWorkerService -> Componente : calcularValor()
+        Componente -> ComponenteWorkerService : valorCalculado
+        ComponenteWorkerService -> ComponenteRepository : registrarValor(Componente, valorCalculado)
+    end loop
+
+    MaquinaWorkerService -> FabricaGaussService : ensamblarMaquinaCompleta()
+end group
+
+group Finalizar y Notificar
+    FabricaGaussService -> FabricaGaussController : Notificar producción completa
+    Usuario -> FabricaGaussController : consultarDistribucion()
+    FabricaGaussController -> GaltonBoardService : mostrarDistribucion()
+    GaltonBoardService -> DistribucionRepository : findById(distribucionId)
+    DistribucionRepository --> GaltonBoardService : Distribucion
+    GaltonBoardService --> FabricaGaussController : Distribucion
+    FabricaGaussController --> Usuario : Distribucion mostrada
+end group
+
+@enduml

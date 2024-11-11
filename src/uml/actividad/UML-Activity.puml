@@ -1,0 +1,60 @@
+@startuml
+start
+
+:Usuario inicia producción completa;
+:Invocar FabricaGaussService.iniciarProduccionCompleta;
+
+partition "FabricaGaussService" {
+    :Llamar a GaltonBoardService.simularCaidaDeBolas;
+}
+
+partition "GaltonBoardService" {
+    :Obtener GaltonBoard desde GaltonBoardRepository;
+    :Inicializar Distribucion en DistribucionRepository;
+
+    repeat
+        :Simular caída de una bola;
+        :Actualizar Distribución en DistribucionRepository;
+    repeat while (No se han simulado todas las bolas)
+
+    :Llamar a FabricaGaussService.actualizarDistribucion;
+}
+
+partition "FabricaGaussService" {
+    :Llamar a GaltonBoardService.actualizarDistribucion;
+}
+
+partition "GaltonBoardService" {
+    :Guardar Distribución final en DistribucionRepository;
+    :Llamar a MaquinaWorkerService.iniciarTrabajo;
+}
+
+partition "MaquinaWorkerService" {
+    :Crear nuevo MaquinaWorker en MaquinaWorkerRepository;
+    :Ensamblar Maquina llamando a ensamblarMaquina;
+
+    repeat
+        :Activar ComponenteWorker para calcular valor;
+        :Registrar valor en ComponenteRepository;
+    repeat while (No se han procesado todos los componentes)
+
+    :Notificar a FabricaGaussService que el ensamblaje está completo;
+}
+
+partition "FabricaGaussService" {
+    :Notificar a FabricaGaussController que la producción ha finalizado;
+}
+
+:Usuario consulta la distribución final;
+partition "FabricaGaussController" {
+    :Recuperar distribución usando GaltonBoardService.mostrarDistribucion;
+}
+
+partition "GaltonBoardService" {
+    :Obtener distribución desde DistribucionRepository;
+}
+
+:Mostrar distribución al Usuario;
+
+stop
+@enduml
