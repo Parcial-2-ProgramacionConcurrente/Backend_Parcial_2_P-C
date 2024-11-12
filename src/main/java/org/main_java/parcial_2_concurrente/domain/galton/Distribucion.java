@@ -18,16 +18,24 @@ import java.util.Map;
 @Document
 public class Distribucion {
 
-    @Id
-    private String id;
     private Map<String, Integer> datos = new HashMap<>();
     private int numBolas;
     private int numContenedores;
 
-    public Mono<Void> agregarBola(int contenedorId) {
+    public Distribucion(int numContenedores) {
+        this.numContenedores = numContenedores;
+        for (int i = 0; i < numContenedores; i++) {
+            datos.put("contenedor_" + i, 0);
+        }
+    }
+
+    public Mono<String> agregarBola(int contenedorId) {
+        if (contenedorId < 0 || contenedorId >= numContenedores) {
+            return Mono.error(new IllegalArgumentException("Contenedor ID fuera de rango: " + contenedorId));
+        }
         String key = "contenedor_" + contenedorId;
-        datos.put(key, datos.getOrDefault(key, 0) + 1);
-        return Mono.empty();
+        datos.merge(key, 1, Integer::sum);
+        return Mono.just("Bola agregada a " + key + ". Total en este contenedor: " + datos.get(key));
     }
 
     public Mono<Map<String, Integer>> obtenerDistribucion() {

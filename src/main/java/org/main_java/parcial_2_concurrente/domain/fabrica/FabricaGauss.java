@@ -8,6 +8,7 @@ import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.Maquina;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
 import java.util.List;
 
@@ -21,21 +22,5 @@ public class FabricaGauss {
     @Id
     private String id;
     private String nombre;
-    private List<Maquina> maquinas;
-
-    public Mono<Void> iniciarProduccion() {
-        // Lógica para iniciar la producción en cada máquina
-        return Mono.when(maquinas.stream()
-                .map(Maquina::ensamblarMaquina)
-                .toList()
-        );
-    }
-
-    public Mono<Void> detenerSimulacion() {
-        // Lógica para detener todas las máquinas y detener la simulación
-        return Mono.when(maquinas.stream()
-                .map(Maquina::detenerMaquina)
-                .toList()
-        );
-    }
+    private List<String> maquinasIds;
 }

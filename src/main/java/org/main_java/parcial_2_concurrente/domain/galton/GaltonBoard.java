@@ -7,6 +7,7 @@ import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Flux;
 
 @Getter
 @Setter
@@ -17,19 +18,10 @@ public class GaltonBoard {
 
     @Id
     private String id;
-    private int numBolas;
-    private int numContenedores;
-    private String estado;
-    private Distribucion distribucion;
-
-    public Mono<Void> simularCaidaDeBolas() {
-        // Simulación de la caída de bolas
-        for (int i = 0; i < numBolas; i++) {
-            int contenedorId = (int) (Math.random() * numContenedores);
-            distribucion.agregarBola(contenedorId).block();
-        }
-        return Mono.empty();
-    }
-
-    // Getters y Setters
+    private int numBolas;           // Número de bolas a simular
+    private int numContenedores;    // Número de contenedores
+    private String estado;          // Estado del tablero (ej., "EN_SIMULACION", "COMPLETADO")
+    private Distribucion distribucion;  // Distribución de bolas en los contenedores
+    private String fabricaId;
+    private GaltonBoardStatus status;
 }

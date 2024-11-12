@@ -3,21 +3,25 @@ package org.main_java.parcial_2_concurrente;
 import org.main_java.parcial_2_concurrente.domain.user.Rol;
 import org.main_java.parcial_2_concurrente.model.userDTO.RegisterRequestDTO;
 import org.main_java.parcial_2_concurrente.repos.user.RolRepository;
+import org.main_java.parcial_2_concurrente.service.fabricaService.FabricaGaussService;
 import org.main_java.parcial_2_concurrente.service.userService.AuthService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import reactor.core.publisher.Mono;
 
 @SpringBootApplication
+@EnableAspectJAutoProxy
 public class Backend_Parcial_2 implements CommandLineRunner {
 
     @Autowired
     private RolRepository rolRepository;
     @Autowired
     private AuthService authService;
-
+    @Autowired
+    private FabricaGaussService fabricaGaussService;
 
     public static void main(String[] args) {
         SpringApplication.run(Backend_Parcial_2.class, args);
@@ -25,12 +29,10 @@ public class Backend_Parcial_2 implements CommandLineRunner {
 
     private Mono<Void> initRoles() {
         Rol adminRole = new Rol("admin");
-        Rol researcherRole = new Rol("paleontologist");
         Rol userRole = new Rol("user");
 
         return Mono.zip(
                         rolRepository.findByNombre(adminRole.getNombre()).switchIfEmpty(rolRepository.save(adminRole)),
-                        rolRepository.findByNombre(researcherRole.getNombre()).switchIfEmpty(rolRepository.save(researcherRole)),
                         rolRepository.findByNombre(userRole.getNombre()).switchIfEmpty(rolRepository.save(userRole))
                 )
                 .doOnSuccess(result -> System.out.println("Roles initialized"))
@@ -40,11 +42,6 @@ public class Backend_Parcial_2 implements CommandLineRunner {
 
     private Mono<Void> initUsers() {
         return Mono.when(
-                        registrarNuevoUsuario(
-                                authService,
-                                "Paleontologo", "ApellidoAA", "ApellidoBB", "paleontologist@gmail.com", 987654321,
-                                "Calle Secundaria 456", "a12345_678", "paleontologist"
-                        ).doOnError(error -> System.err.println("Error registrando Paleontologo: " + error.getMessage())),
 
                         registrarNuevoUsuario(
                                 authService,
@@ -61,7 +58,6 @@ public class Backend_Parcial_2 implements CommandLineRunner {
                 .then()
                 .doOnSuccess(unused -> System.out.println("Todos los usuarios han sido registrados"));
     }
-
 
     private Mono<Void> registrarNuevoUsuario(AuthService authService, String nombre, String apellido1, String apellido2,
                                              String correo, int telefono, String direccion, String contrasena, String rolNombre) {
@@ -81,17 +77,15 @@ public class Backend_Parcial_2 implements CommandLineRunner {
                 .then();
     }
 
-
-
-
     @Override
     public void run(String... args) throws Exception {
 
         initRoles()
                 .then(initUsers())
+                .then(fabricaGaussService.iniciarProduccionCompleta()) // Llamada a iniciarProduccionCompleta
                 .subscribe(
-                        unused -> System.out.println("Inicialización completa"),
-                        error -> System.err.println("Error en la inicialización: " + error.getMessage())
+                        unused -> System.out.println("Inicialización completa y producción iniciada"),
+                        error -> System.err.println("Error en la inicialización o producción: " + error.getMessage())
                 );
     }
 }
