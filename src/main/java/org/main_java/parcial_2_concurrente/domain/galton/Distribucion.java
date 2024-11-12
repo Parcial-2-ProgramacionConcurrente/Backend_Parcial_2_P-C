@@ -24,10 +24,26 @@ public class Distribucion {
     private int numBolas;
     private int numContenedores;
 
-    public Mono<Void> agregarBola(int contenedorId) {
+    /**
+     * Agrega una bola al contenedor especificado de manera concurrente.
+     *
+     * @param contenedorId El ID del contenedor donde se agrega la bola.
+     * @return Mono<String> mensaje indicando el estado del contenedor después de agregar la bola.
+     */
+    public Mono<String> agregarBola(int contenedorId) {
+        if (contenedorId < 0 || contenedorId >= numContenedores) {
+            return Mono.error(new IllegalArgumentException("Contenedor ID fuera de rango: " + contenedorId));
+        }
+
+        // Identificador de contenedor en el mapa
         String key = "contenedor_" + contenedorId;
-        datos.put(key, datos.getOrDefault(key, 0) + 1);
-        return Mono.empty();
+
+        // Actualización concurrente del contador de bolas en el contenedor
+        datos.merge(key, 1, Integer::sum);
+
+        // Devolución de mensaje de estado para depuración o notificación
+        String mensaje = "Bola agregada a " + key + ". Total en este contenedor: " + datos.get(key);
+        return Mono.just(mensaje);
     }
 
     public Mono<Map<String, Integer>> obtenerDistribucion() {

@@ -1,6 +1,8 @@
 package org.main_java.parcial_2_concurrente.service.fabricaService;
 
 import org.main_java.parcial_2_concurrente.domain.fabrica.FabricaGauss;
+import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.Maquina;
+import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.maquinas_especificas.MaquinaDistribucionNormal;
 import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoard;
 import org.main_java.parcial_2_concurrente.model.fabricaDTO.FabricaGaussDTO;
 import org.main_java.parcial_2_concurrente.repos.fabrica.FabricaGaussRepository;
@@ -10,6 +12,8 @@ import org.main_java.parcial_2_concurrente.service.messaging.RabbitMQService;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
+
+import java.util.List;
 
 @Service
 public class FabricaGaussService {
@@ -73,16 +77,53 @@ public class FabricaGaussService {
      * @return Mono<Void>
      */
     public Mono<Void> iniciarProduccionCompleta() {
-        return fabricaGaussRepository.findAll()
-                .flatMap(fabrica -> obtenerOGenerarGaltonBoard(fabrica)
-                        .flatMap(galtonBoard -> galtonBoardService.simularCaidaDeBolas(galtonBoard)
-                                .then(galtonBoardService.actualizarDistribucion(galtonBoard, galtonBoard.getDistribucion().getDatos()))
-                                .then(maquinaWorkerService.iniciarTrabajo(fabrica.getMaquinas(), galtonBoard))
-                        ))
-                .then(rabbitMQService.enviarMensaje("produccion_queue", "Producción completa en todas las fábricas."))
-                .doOnSuccess(v -> System.out.println("Producción completa en todas las fábricas. Notificación enviada."))
-                .doOnError(e -> System.err.println("Error in iniciarProduccionCompleta: " + e.getMessage()));
+        System.out.println("Iniciando producción completa en todas las fábricas.");
+
+        return fabricaGaussRepository.count()
+                .flatMap(count -> {
+                    if (count == 0) {
+                        System.out.println("No se encontraron fábricas, inicializando fábricas predeterminadas.");
+
+                        // Crear una instancia de MaquinaDistribucionNormal con valores predeterminados
+                        MaquinaDistribucionNormal maquinaDistribucionNormal = new MaquinaDistribucionNormal();
+                        maquinaDistribucionNormal.setTipo("MaquinaDistribucionNormal");
+                        maquinaDistribucionNormal.setMedia(0.0);
+                        maquinaDistribucionNormal.setDesviacionEstandar(1.5);
+                        maquinaDistribucionNormal.setMaximoValor(10);
+
+                        // Crear fábricas predeterminadas con la instancia de MaquinaDistribucionNormal
+                        List<FabricaGauss> fabricasPredeterminadas = List.of(
+                                new FabricaGauss(null, "Fábrica A", List.of(maquinaDistribucionNormal))
+                        );
+
+                        return fabricaGaussRepository.saveAll(fabricasPredeterminadas).then();
+                    }
+                    return Mono.empty();
+                })
+                .thenMany(fabricaGaussRepository.findAll())
+                .flatMap(fabrica -> {
+                    System.out.println("Procesando fábrica: " + fabrica.getNombre());
+
+                    return obtenerOGenerarGaltonBoard(fabrica)
+                            .flatMap(galtonBoard -> {
+                                System.out.println("GaltonBoard preparado para la fábrica: " + fabrica.getNombre());
+
+                                return galtonBoardService.simularCaidaDeBolas(galtonBoard)
+                                        .then(galtonBoardService.actualizarDistribucion(galtonBoard, galtonBoard.getDistribucion().getDatos()))
+                                        .then(maquinaWorkerService.iniciarTrabajo(fabrica.getMaquinas(), galtonBoard));
+                            });
+                })
+                .collectList()
+                .then(Mono.defer(() -> {
+                    String mensaje = "Producción completa en todas las fábricas.";
+                    System.out.println("Enviando mensaje de finalización a RabbitMQ: " + mensaje);
+                    return rabbitMQService.enviarMensaje("produccion_queue", mensaje)
+                            .doOnSuccess(v -> System.out.println("Producción completa en todas las fábricas. Notificación enviada."));
+                }))
+                .doOnError(e -> System.err.println("Error en iniciarProduccionCompleta: " + e.getMessage()));
     }
+
+
 
     /**
      * Obtiene el GaltonBoard asociado a la fábrica o crea uno nuevo si es necesario.

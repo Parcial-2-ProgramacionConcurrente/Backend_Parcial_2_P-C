@@ -27,12 +27,10 @@ public class Backend_Parcial_2 implements CommandLineRunner {
 
     private Mono<Void> initRoles() {
         Rol adminRole = new Rol("admin");
-        Rol researcherRole = new Rol("paleontologist");
         Rol userRole = new Rol("user");
 
         return Mono.zip(
                         rolRepository.findByNombre(adminRole.getNombre()).switchIfEmpty(rolRepository.save(adminRole)),
-                        rolRepository.findByNombre(researcherRole.getNombre()).switchIfEmpty(rolRepository.save(researcherRole)),
                         rolRepository.findByNombre(userRole.getNombre()).switchIfEmpty(rolRepository.save(userRole))
                 )
                 .doOnSuccess(result -> System.out.println("Roles initialized"))
@@ -42,11 +40,6 @@ public class Backend_Parcial_2 implements CommandLineRunner {
 
     private Mono<Void> initUsers() {
         return Mono.when(
-                        registrarNuevoUsuario(
-                                authService,
-                                "Paleontologo", "ApellidoAA", "ApellidoBB", "paleontologist@gmail.com", 987654321,
-                                "Calle Secundaria 456", "a12345_678", "paleontologist"
-                        ).doOnError(error -> System.err.println("Error registrando Paleontologo: " + error.getMessage())),
 
                         registrarNuevoUsuario(
                                 authService,

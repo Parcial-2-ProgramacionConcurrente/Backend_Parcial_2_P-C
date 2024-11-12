@@ -10,6 +10,9 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @Service
 public class ComponenteWorkerService {
@@ -17,9 +20,44 @@ public class ComponenteWorkerService {
     private final ComponenteRepository componenteRepository;
     private final RabbitMQService rabbitMQService;
 
+    // Crea un pool de hilos para procesar cada componente en un hilo separado
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
+
+
     public ComponenteWorkerService(ComponenteRepository componenteRepository, RabbitMQService rabbitMQService) {
         this.componenteRepository = componenteRepository;
         this.rabbitMQService = rabbitMQService;
+    }
+
+    /**
+     * Procesa todos los componentes, calculando y registrando los valores, luego envía una notificación.
+     *
+     * @param componentes Flujo de ComponenteWorker a procesar.
+     * @param galtonBoard El GaltonBoard que provee la distribución de valores.
+     * @return Mono<Void> señal de que el procesamiento ha finalizado.
+     */
+    public Mono<Void> procesarComponentes(Flux<ComponenteWorker> componentes, GaltonBoard galtonBoard) {
+        // Convertimos cada componente a una tarea asincrónica manejada por el executorService
+        return componentes
+                .flatMap(componenteWorker -> Mono.fromFuture(
+                        CompletableFuture.runAsync(() -> procesarComponente(componenteWorker, galtonBoard), executorService)
+                ))
+                .doOnError(e -> System.err.println("Error procesando componentes: " + e.getMessage()))
+                .then(enviarNotificacionDeCompletado());
+    }
+
+    /**
+     * Procesa un único componente: calcula el valor y lo registra.
+     *
+     * @param componenteWorker El ComponenteWorker a procesar.
+     * @param galtonBoard      El GaltonBoard que provee la distribución de valores.
+     */
+    private void procesarComponente(ComponenteWorker componenteWorker, GaltonBoard galtonBoard) {
+        calcularValor(componenteWorker, galtonBoard)
+                .flatMap(valor -> registrarValor(componenteWorker.getComponente(), valor))
+                .doOnSuccess(v -> System.out.println("Componente procesado con valor registrado"))
+                .doOnError(e -> System.err.println("Error procesando componente: " + e.getMessage()))
+                .subscribe();
     }
 
     /**
@@ -49,22 +87,6 @@ public class ComponenteWorkerService {
                 .doOnSuccess(c -> System.out.println("Valor registrado en el componente: " + c.getValorCalculado()))
                 .doOnError(e -> System.err.println("Error registrando el valor: " + e.getMessage()))
                 .then();
-    }
-
-    /**
-     * Procesa todos los componentes, calculando y registrando los valores, luego envía una notificación.
-     *
-     * @param componentes Flujo de ComponenteWorker a procesar.
-     * @param galtonBoard El GaltonBoard que provee la distribución de valores.
-     * @return Mono<Void> señal de que el procesamiento ha finalizado.
-     */
-    public Mono<Void> procesarComponentes(Flux<ComponenteWorker> componentes, GaltonBoard galtonBoard) {
-        return componentes
-                .flatMap(componenteWorker -> calcularValor(componenteWorker, galtonBoard)
-                        .flatMap(valor -> registrarValor(componenteWorker.getComponente(), valor))
-                )
-                .doOnError(e -> System.err.println("Error procesando componentes: " + e.getMessage()))
-                .then(enviarNotificacionDeCompletado());
     }
 
     /**
