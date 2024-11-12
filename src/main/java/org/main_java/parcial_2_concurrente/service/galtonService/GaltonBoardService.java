@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -29,15 +30,9 @@ public class GaltonBoardService {
 
     private final GaltonBoardRepository galtonBoardRepository;
     private final RabbitMQService rabbitMQService;
-    GaltonBoardStatus status;
-    // Creamos un pool de hilos para manejar la simulación concurrente
     private final ExecutorService executorService = Executors.newFixedThreadPool(20);
     private final AtomicBoolean procesandoSimulacion = new AtomicBoolean(false);
     private final AtomicBoolean distribucionActualizando = new AtomicBoolean(false); // Indicador de actualización
-
-
-
-    private static final String RABBITMQ_QUEUE = "galtonboard_simulation_queue";
 
 
     public GaltonBoardService(GaltonBoardRepository galtonBoardRepository, RabbitMQService rabbitMQService) {
@@ -50,41 +45,85 @@ public class GaltonBoardService {
         if (procesandoSimulacion.get()) {
             System.out.println("Esperando a que se complete la simulación en curso...");
             return Mono.empty().delayElement(Duration.ofMillis(500))
-                    .then(simularCaidaDeBolas(galtonBoard, media, desviacionEstandar)); // Retry después de una pequeña espera
+                    .then(simularCaidaDeBolas(galtonBoard, media, desviacionEstandar));
         }
 
         procesandoSimulacion.set(true);
         System.out.println("Iniciando simulación de caída de " + galtonBoard.getNumBolas() + " bolas en el tablero " + galtonBoard.getId());
 
-
         int numContenedores = galtonBoard.getNumContenedores();
-        double mean = numContenedores / media; // Media para centrar la distribución en el tablero
-        double stdDev = numContenedores / desviacionEstandar; // Desviación estándar para control de dispersión
+        int n = numContenedores - 1; // Número de niveles
 
+        // Calculamos el discriminante
+        double discriminante = 1 - (4 * desviacionEstandar * desviacionEstandar) / n;
+
+        // Verificamos que el discriminante sea no negativo
+        if (discriminante < 0) {
+            System.err.println("No es posible obtener una desviación estándar de " + desviacionEstandar + " con n = " + n);
+            // Manejar el error adecuadamente
+            return Mono.error(new IllegalArgumentException("Parámetros incompatibles."));
+        }
+
+        // Calculamos las posibles soluciones para p
+        double sqrtDiscriminante = Math.sqrt(discriminante);
+        double p1 = (1 + sqrtDiscriminante) / 2;
+        double p2 = (1 - sqrtDiscriminante) / 2;
+
+        // Elegimos el valor de p que está entre 0 y 1
+        double p;
+        if (p1 >= 0 && p1 <= 1) {
+            p = p1;
+        } else if (p2 >= 0 && p2 <= 1) {
+            p = p2;
+        } else {
+            System.err.println("No hay solución válida para p.");
+            // Manejar el error adecuadamente
+            return Mono.error(new IllegalArgumentException("No hay solución válida para p."));
+        }
+
+        // Calculamos la media resultante
+        double mediaResultante = n * p;
+        System.out.println("Media resultante: " + mediaResultante);
+
+        double toleranciaAceptable = 0.1; // Diferencia máxima aceptable de 0.1
+
+        // Informamos si la media resultante difiere de la media deseada
+        if (Math.abs(mediaResultante - media) > toleranciaAceptable) {
+            System.err.println("La media resultante (" + mediaResultante + ") difiere de la media deseada (" + media + ").");
+            // Puedes decidir cómo manejar esta discrepancia
+        }
+
+        // Continuamos con la simulación utilizando este p
         Random random = new Random();
         int numBolas = galtonBoard.getNumBolas();
         AtomicInteger numBolasProcesadas = new AtomicInteger(0);
 
         return Flux.range(0, numBolas)
-                .flatMap(i -> {
-                    // Generar un índice basado en una distribución normal
-                    int contenedorId = (int) Math.round(random.nextGaussian() * stdDev + mean);
-                    contenedorId = Math.max(0, Math.min(numContenedores - 1, contenedorId)); // Asegurar que esté en los límites
-                    System.out.println("Bola #" + i + " cayó en el contenedor " + contenedorId);
+                .flatMap(i -> Mono.fromCallable(() -> {
+                    // Simulamos el recorrido de la bola
+                    int posicion = 0;
+                    for (int nivel = 0; nivel < n; nivel++) {
+                        if (random.nextDouble() < p) {
+                            posicion++;
+                        }
+                    }
+                    int contenedorId = posicion;
+                    contenedorId = Math.max(0, Math.min(numContenedores - 1, contenedorId));
 
+                    // Imprimir el hilo actual para verificar el uso del ExecutorService
+                    System.out.println("    ----> Hilo actual: [" + Thread.currentThread().getName() + "] - Bola #" + i + " cayó en el contenedor " + contenedorId);
                     int finalContenedorId = contenedorId;
-                    return galtonBoard.getDistribucion().agregarBola(contenedorId)
-                            .doOnSuccess(msg -> System.out.println(msg))
-                            .doOnSuccess(msg -> {
-                                // Enviar mensaje a RabbitMQ indicando la bola agregada y su contenedor
-                                String mensaje = String.format("Bola #%d agregada al contenedor %d", i, finalContenedorId);
-                                rabbitMQService.enviarMensaje("queue_bolas", mensaje)
-                                        .doOnSuccess(v -> System.out.println("Notificación enviada a RabbitMQ: " + mensaje))
-                                        .doOnError(e -> System.err.println("Error enviando notificación a RabbitMQ: " + e.getMessage()))
-                                        .subscribe();
-                            })
-                            .doOnError(e -> System.err.println("Error al agregar bola a la distribución: " + e.getMessage()));
-                })
+                    galtonBoard.getDistribucion().agregarBola(contenedorId).subscribe(msg -> {
+                        System.out.println(msg);
+                        String mensaje = String.format("Bola #%d agregada al contenedor %d", i, finalContenedorId);
+                        rabbitMQService.enviarMensaje("queue_bolas", mensaje)
+                                .doOnSuccess(v -> System.out.println("Notificación enviada a RabbitMQ: " + mensaje))
+                                .doOnError(e -> System.err.println("Error enviando notificación a RabbitMQ: " + e.getMessage()))
+                                .subscribe();
+                    });
+
+                    return i;
+                }).subscribeOn(Schedulers.fromExecutor(executorService))) // Asignamos cada tarea al executorService
                 .doOnNext(i -> {
                     numBolasProcesadas.incrementAndGet();
                     if (numBolasProcesadas.get() % 100 == 0 || numBolasProcesadas.get() == numBolas) {
@@ -95,23 +134,22 @@ public class GaltonBoardService {
                     galtonBoard.setEstado("COMPLETADO");
                     System.out.println("Simulación completada en el tablero " + galtonBoard.getId());
 
-                    // Mostrar la distribución final en la consola
                     galtonBoard.getDistribucion().obtenerDistribucion()
-                            .doOnSuccess(datosFinales -> mostrarDistribucion(datosFinales))
+                            .doOnSuccess(this::mostrarDistribucion)
                             .doOnError(e -> System.err.println("Error mostrando distribución final: " + e.getMessage()))
                             .subscribe();
 
-                    // Guardar el GaltonBoard con la distribución actualizada en la base de datos
                     galtonBoardRepository.save(galtonBoard)
                             .doOnSuccess(savedGaltonBoard -> System.out.println("GaltonBoard actualizado en la base de datos para el tablero " + savedGaltonBoard.getId()))
                             .doOnError(e -> System.err.println("Error guardando el GaltonBoard actualizado: " + e.getMessage()))
                             .subscribe();
 
-                    // Notificación de completado de simulación
                     enviarNotificacionSimulacionCompleta(galtonBoard.getId(), galtonBoard.getDistribucion().getDatos())
                             .doOnSuccess(v -> System.out.println("Notificación de simulación completada enviada para GaltonBoard ID: " + galtonBoard.getId()))
                             .doOnError(e -> System.err.println("Error enviando notificación: " + e.getMessage()))
                             .subscribe();
+
+                    executorService.shutdown(); // Cerramos el ExecutorService al finalizar
                 })
                 .doOnError(e -> System.err.println("Error simulando la caída de bolas: " + e.getMessage()))
                 .doFinally(signal -> procesandoSimulacion.set(false)) // Liberamos el bloqueo al finalizar
@@ -134,7 +172,6 @@ public class GaltonBoardService {
         return galtonBoardRepository.save(galtonBoard)
                 .doOnSuccess(savedGaltonBoard -> System.out.println("GaltonBoard saved with ID: " + savedGaltonBoard.getId()));
     }
-
 
     /**
      * Muestra la distribución de bolas en cada contenedor al finalizar la simulación.

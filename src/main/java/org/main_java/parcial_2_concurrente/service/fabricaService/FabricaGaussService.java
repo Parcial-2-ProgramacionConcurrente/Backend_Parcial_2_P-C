@@ -100,9 +100,10 @@ public class FabricaGaussService {
         System.out.println("Iniciando producción completa en todas las fábricas.");
         rabbitMQService.enviarMensaje("produccion_queue", "Inicio de producción");
 
-
-        double mediaDefault = (12 - 1) / 2.0; // Media
-        double desviacionEstandarDefault = mediaDefault / 1.5; // Desviación estándar
+        double n = 11.0;
+        double p = 0.5;
+        double mediaDefault = n * p; // Media
+        double desviacionEstandarDefault = Math.sqrt(n * p * (1 - p)); // Desviación estándar
 
         return fabricaGaussRepository.count()
                 .flatMap(count -> {
