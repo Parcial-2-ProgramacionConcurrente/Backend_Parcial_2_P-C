@@ -4,6 +4,7 @@ import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.componentes.Co
 import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.componentes.ComponenteWorker;
 import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoard;
 import org.main_java.parcial_2_concurrente.repos.fabrica.maquina.componente.ComponenteRepository;
+import org.main_java.parcial_2_concurrente.service.galtonService.GaltonBoardService;
 import org.main_java.parcial_2_concurrente.service.messaging.RabbitMQService;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -19,14 +20,16 @@ public class ComponenteWorkerService {
 
     private final ComponenteRepository componenteRepository;
     private final RabbitMQService rabbitMQService;
+    private final GaltonBoardService galtonBoardService;
 
     // Crea un pool de hilos para procesar cada componente en un hilo separado
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
 
-    public ComponenteWorkerService(ComponenteRepository componenteRepository, RabbitMQService rabbitMQService) {
+    public ComponenteWorkerService(ComponenteRepository componenteRepository, RabbitMQService rabbitMQService, GaltonBoardService galtonBoardService) {
         this.componenteRepository = componenteRepository;
         this.rabbitMQService = rabbitMQService;
+        this.galtonBoardService = galtonBoardService;
     }
 
     /**
@@ -42,6 +45,12 @@ public class ComponenteWorkerService {
             return Mono.just(componenteWorker); // Devolver el componente sin procesar
         }
 
+        // Asegurarse de que la distribución no esté vacía
+        if (galtonBoard.getDistribucion() == null || galtonBoard.getDistribucion().getDatos().isEmpty()) {
+            System.err.println("Advertencia: La distribución no contiene bolas. Verifique si la simulación se completó correctamente.");
+            return Mono.just(componenteWorker); // Evitar procesamiento con distribución vacía
+        }
+
         return calcularValor(componenteWorker, galtonBoard)
                 .flatMap(valor -> registrarValor(componenteWorker.getComponente(), valor))
                 .doOnSuccess(v -> System.out.println("Componente procesado con valor registrado: " + componenteWorker.getComponente().getId()))
@@ -49,10 +58,6 @@ public class ComponenteWorkerService {
                 .doFinally(signal -> System.out.println("Proceso finalizado para el componente: " + componenteWorker.getComponente().getId()))
                 .thenReturn(componenteWorker); // Devolver el componente procesado
     }
-
-
-
-
 
     /**
      * Calcula el valor del ComponenteWorker basado en la distribución del GaltonBoard.
@@ -76,8 +81,8 @@ public class ComponenteWorkerService {
      * @return Mono<Void> señal de que el registro ha sido exitoso.
      */
     public Mono<Void> registrarValor(Componente componente, double valor) {
-        return componente.registrarValor(valor)
-                .then(componenteRepository.save(componente))
+        componente.setValorCalculado(valor); // Asignar el valor calculado al componente
+        return componenteRepository.save(componente)
                 .doOnSuccess(c -> System.out.println("Valor registrado en el componente: " + c.getValorCalculado()))
                 .doOnError(e -> System.err.println("Error registrando el valor: " + e.getMessage()))
                 .then();

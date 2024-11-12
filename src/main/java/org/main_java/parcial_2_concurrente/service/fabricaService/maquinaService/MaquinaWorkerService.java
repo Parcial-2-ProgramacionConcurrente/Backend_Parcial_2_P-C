@@ -1,5 +1,6 @@
 package org.main_java.parcial_2_concurrente.service.fabricaService.maquinaService;
 
+import org.main_java.parcial_2_concurrente.aop.sync.SynchronizedExecution;
 import org.main_java.parcial_2_concurrente.repos.fabrica.maquina.componente.ComponenteWorkerRepository;
 import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.Maquina;
 import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.MaquinaWorker;
@@ -8,7 +9,11 @@ import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.componentes.Co
 import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoard;
 import org.main_java.parcial_2_concurrente.repos.fabrica.maquina.MaquinaRepository;
 import org.main_java.parcial_2_concurrente.repos.fabrica.maquina.MaquinaWorkerRepository;
+import org.main_java.parcial_2_concurrente.repos.galton.GaltonBoardRepository;
+import org.main_java.parcial_2_concurrente.service.fabricaService.FabricaGaussService;
+import org.main_java.parcial_2_concurrente.service.galtonService.GaltonBoardService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
@@ -21,14 +26,29 @@ public class MaquinaWorkerService {
     @Autowired
     private ComponenteWorkerRepository componenteWorkerRepository;
 
-    private final MaquinaWorkerRepository maquinaWorkerRepository;
-    private final ComponenteWorkerService componenteWorkerService;
-    private final MaquinaRepository maquinaRepository;
+    @Autowired
+    private MaquinaWorkerRepository maquinaWorkerRepository;
 
-    public MaquinaWorkerService(MaquinaWorkerRepository maquinaWorkerRepository, ComponenteWorkerService componenteWorkerService, MaquinaRepository maquinaRepository) {
+    @Autowired
+    private MaquinaRepository maquinaRepository;
+
+    @Autowired
+    private GaltonBoardRepository galtonBoardRepository;
+
+    private final ComponenteWorkerService componenteWorkerService;
+    private final GaltonBoardService galtonBoardService; // Agregamos GaltonBoardService para control de sincronización
+    private final FabricaGaussService fabricaGaussService; // Agregamos FabricaGaussService para actualizar los componentes con la distribución
+
+    public MaquinaWorkerService(MaquinaWorkerRepository maquinaWorkerRepository,
+                                ComponenteWorkerService componenteWorkerService,
+                                MaquinaRepository maquinaRepository,
+                                GaltonBoardService galtonBoardService,
+                                @Lazy FabricaGaussService fabricaGaussService) {
         this.maquinaWorkerRepository = maquinaWorkerRepository;
         this.componenteWorkerService = componenteWorkerService;
         this.maquinaRepository = maquinaRepository;
+        this.galtonBoardService = galtonBoardService;
+        this.fabricaGaussService = fabricaGaussService;
     }
 
     /**
@@ -38,18 +58,25 @@ public class MaquinaWorkerService {
      * @param galtonBoard El GaltonBoard que define la distribución de los componentes.
      * @return Mono<Void> señal de que el trabajo de ensamblaje ha finalizado.
      */
+    @SynchronizedExecution
     public Mono<Void> iniciarTrabajo(List<String> maquinasIds, GaltonBoard galtonBoard) {
-        return Flux.fromIterable(maquinasIds)
-                .flatMap(maquinaId -> maquinaRepository.findById(maquinaId)
-                        .flatMap(maquina -> obtenerOCrearMaquinaWorker(maquina, galtonBoard)
-                                .flatMap(this::ensamblarMaquina) // Aquí llamamos a ensamblarMaquina para cada MaquinaWorker creada
-                        ))
+        // Esperar a que la actualización de distribución esté completa antes de continuar
+        return galtonBoardService.esperarDistribucionActualizada()
+                .thenMany(Flux.fromIterable(maquinasIds)
+                        .flatMap(maquinaId ->
+                                // Actualizamos los componentes con la distribución final antes de ensamblar
+                                fabricaGaussService.actualizarComponentesConDistribucion(maquinaId, galtonBoard)
+                                        .then(maquinaRepository.findById(maquinaId)
+                                                .flatMap(maquina -> obtenerOCrearMaquinaWorker(maquina, galtonBoard)
+                                                        .flatMap(this::ensamblarMaquina)
+                                                )
+                                        )
+                        )
+                )
                 .then()
                 .doOnSuccess(v -> System.out.println("Ensamblaje completo para todas las máquinas."))
                 .doOnError(e -> System.err.println("Error en iniciarTrabajo: " + e.getMessage()));
     }
-
-
 
     /**
      * Obtiene un MaquinaWorker de la base de datos o lo crea si no existe.
@@ -107,45 +134,51 @@ public class MaquinaWorkerService {
                 .flatMap(maquina -> {
                     System.out.println("Iniciando ensamblaje de la máquina " + maquina.getTipo());
 
-                    // Verificar que GaltonBoard no sea null antes de continuar
-                    GaltonBoard galtonBoard = maquina.getGaltonBoard();
-                    if (galtonBoard == null) {
-                        System.err.println("Error: GaltonBoard es null para la máquina " + maquina.getTipo());
-                        return Mono.error(new RuntimeException("GaltonBoard es null para la máquina " + maquina.getTipo()));
-                    }
+                    // Verificar si la máquina tiene un GaltonBoard asignado
+                    Mono<GaltonBoard> galtonBoardMono = (maquina.getGaltonBoard() == null)
+                            ? galtonBoardRepository.findAll()
+                            .last() // Obtiene el último `GaltonBoard` insertado en la base de datos
+                            .doOnNext(galtonBoard -> System.out.println("GaltonBoard más reciente obtenido: " + galtonBoard.getId()))
+                            : Mono.just(maquina.getGaltonBoard());
 
-                    // Si no hay ComponenteWorker IDs, omitir el ensamblaje
-                    if (maquinaWorker.getComponenteWorkerIds().isEmpty()) {
-                        System.out.println("No hay componentes para ensamblar en la máquina " + maquina.getTipo());
-                        return Mono.empty();
-                    }
+                    return galtonBoardMono.flatMap(galtonBoardActualizado -> {
+                        // Asignar el GaltonBoard actualizado a la máquina y guardar si es necesario
+                        if (maquina.getGaltonBoard() == null) {
+                            maquina.setGaltonBoard(galtonBoardActualizado);
+                            return maquinaRepository.save(maquina);
+                        }
+                        return Mono.just(maquina);
+                    }).flatMap(savedMaquina -> {
+                        if (maquinaWorker.getComponenteWorkerIds().isEmpty()) {
+                            System.out.println("No hay componentes para ensamblar en la máquina " + maquina.getTipo());
+                            return Mono.empty();
+                        }
 
-                    // Obtiene los ComponenteWorkers usando sus IDs de forma reactiva
-                    return obtenerComponenteWorkers(maquinaWorker.getComponenteWorkerIds())
-                            .flatMapMany(Flux::fromIterable)
-                            .flatMap(componenteWorker ->
-                                    componenteWorkerService.procesarComponente(componenteWorker, galtonBoard)
-                            )
-                            .collectList() // Recolecta todos los ComponenteWorkers procesados en una lista
-                            .flatMap(processedComponents -> {
-                                maquina.setEstado("ENSAMBLADA");
-                                System.out.println("Máquina " + maquina.getTipo() + " ensamblada con éxito.");
+                        // Obtener y procesar cada ComponenteWorker con el GaltonBoard actualizado
+                        return obtenerComponenteWorkers(maquinaWorker.getComponenteWorkerIds())
+                                .flatMapMany(Flux::fromIterable)
+                                .flatMap(componenteWorker ->
+                                        componenteWorkerService.procesarComponente(componenteWorker, savedMaquina.getGaltonBoard())
+                                )
+                                .collectList()
+                                .flatMap(processedComponents -> {
+                                    maquina.setEstado("ENSAMBLADA");
+                                    System.out.println("Máquina " + maquina.getTipo() + " ensamblada con éxito.");
 
-                                // Imprimir detalles de los componentes ensamblados
-                                System.out.println("Componentes ensamblados de la máquina " + maquina.getTipo() + ":");
-                                processedComponents.forEach(componenteWorker -> {
-                                    System.out.println("- Componente ID: " + componenteWorker.getComponente().getId() +
-                                            ", Tipo: " + componenteWorker.getComponente().getTipo() +
-                                            ", Estado ensamblado: " + componenteWorker.isEnsamblado());
-                                });
+                                    // Imprimir detalles de los componentes ensamblados
+                                    processedComponents.forEach(componenteWorker -> {
+                                        System.out.println("- Componente ID: " + componenteWorker.getComponente().getId() +
+                                                ", Tipo: " + componenteWorker.getComponente().getTipo() +
+                                                ", Estado ensamblado: " + componenteWorker.isEnsamblado());
+                                    });
 
-                                return Mono.just(maquinaWorker); // Pasamos el MaquinaWorker al siguiente paso
-                            })
-                            .flatMap(maquinaWorkerRepository::save) // Guarda el MaquinaWorker actualizado en la base de datos
-                            .doOnSuccess(savedWorker -> System.out.println("Estado del MaquinaWorker guardado para máquina " + maquina.getTipo()))
-                            .doOnError(e -> System.err.println("Error ensamblando máquina " + maquina.getTipo() + ": " + e.getMessage()));
+                                    return Mono.just(maquinaWorker);
+                                })
+                                .flatMap(maquinaWorkerRepository::save)
+                                .doOnSuccess(savedWorker -> System.out.println("Estado del MaquinaWorker guardado para máquina " + maquina.getTipo()))
+                                .doOnError(e -> System.err.println("Error ensamblando máquina " + maquina.getTipo() + ": " + e.getMessage()));
+                    });
                 }).then();
     }
-
 
 }

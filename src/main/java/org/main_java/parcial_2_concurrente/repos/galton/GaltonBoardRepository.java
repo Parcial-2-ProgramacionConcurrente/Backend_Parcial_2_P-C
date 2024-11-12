@@ -13,5 +13,4 @@ public interface GaltonBoardRepository extends ReactiveMongoRepository<GaltonBoa
      * @return Mono<GaltonBoard> el GaltonBoard asociado a la fábrica, si existe.
      */
     Mono<GaltonBoard> findByFabricaId(String fabricaId);
-
 }

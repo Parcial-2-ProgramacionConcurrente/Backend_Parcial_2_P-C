@@ -1,5 +1,6 @@
 package org.main_java.parcial_2_concurrente.service.galtonService;
 
+import org.main_java.parcial_2_concurrente.aop.sync.SynchronizedExecution;
 import org.main_java.parcial_2_concurrente.domain.fabrica.FabricaGauss;
 import org.main_java.parcial_2_concurrente.domain.galton.Distribucion;
 import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoard;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -19,6 +21,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Service
@@ -29,6 +32,8 @@ public class GaltonBoardService {
     GaltonBoardStatus status;
     // Creamos un pool de hilos para manejar la simulación concurrente
     private final ExecutorService executorService = Executors.newFixedThreadPool(20);
+    private final AtomicBoolean procesandoSimulacion = new AtomicBoolean(false);
+    private final AtomicBoolean distribucionActualizando = new AtomicBoolean(false); // Indicador de actualización
 
 
 
@@ -40,7 +45,15 @@ public class GaltonBoardService {
         this.rabbitMQService = rabbitMQService;
     }
 
+    @SynchronizedExecution
     public Mono<Void> simularCaidaDeBolas(GaltonBoard galtonBoard) {
+        if (procesandoSimulacion.get()) {
+            System.out.println("Esperando a que se complete la simulación en curso...");
+            return Mono.empty().delayElement(Duration.ofMillis(500))
+                    .then(simularCaidaDeBolas(galtonBoard)); // Retry después de una pequeña espera
+        }
+
+        procesandoSimulacion.set(true);
         System.out.println("Iniciando simulación de caída de " + galtonBoard.getNumBolas() + " bolas en el tablero " + galtonBoard.getId());
 
         int numBolas = galtonBoard.getNumBolas();
@@ -65,20 +78,38 @@ public class GaltonBoardService {
                     galtonBoard.setEstado("COMPLETADO");
                     System.out.println("Simulación completada en el tablero " + galtonBoard.getId());
 
-                    // Obtener y mostrar la distribución final
+                    // Mostrar la distribución final en la consola
                     galtonBoard.getDistribucion().obtenerDistribucion()
                             .doOnSuccess(datosFinales -> mostrarDistribucion(datosFinales))
                             .doOnError(e -> System.err.println("Error mostrando distribución final: " + e.getMessage()))
                             .subscribe();
 
-                    // Notificar finalización de la simulación
+                    // Guardar el GaltonBoard con la distribución actualizada en la base de datos
+                    galtonBoardRepository.save(galtonBoard)
+                            .doOnSuccess(savedGaltonBoard -> System.out.println("GaltonBoard actualizado en la base de datos para el tablero " + savedGaltonBoard.getId()))
+                            .doOnError(e -> System.err.println("Error guardando el GaltonBoard actualizado: " + e.getMessage()))
+                            .subscribe();
+
+                    // Notificación de completado de simulación
                     enviarNotificacionSimulacionCompleta(galtonBoard.getId(), galtonBoard.getDistribucion().getDatos())
                             .doOnSuccess(v -> System.out.println("Notificación de simulación completada enviada para GaltonBoard ID: " + galtonBoard.getId()))
                             .doOnError(e -> System.err.println("Error enviando notificación: " + e.getMessage()))
                             .subscribe();
                 })
                 .doOnError(e -> System.err.println("Error simulando la caída de bolas: " + e.getMessage()))
+                .doFinally(signal -> procesandoSimulacion.set(false)) // Liberamos el bloqueo al finalizar
                 .then();
+    }
+
+
+    public Mono<Void> esperarSimulacionCompletada() {
+        return Mono.defer(() -> {
+            if (procesandoSimulacion.get()) {
+                System.out.println("Esperando a que termine la simulación de caída de bolas...");
+                return Mono.delay(Duration.ofMillis(100)).then(esperarSimulacionCompletada());
+            }
+            return Mono.empty();
+        });
     }
 
 
@@ -104,7 +135,6 @@ public class GaltonBoardService {
         });
     }
 
-
     /**
      * Actualiza la distribución del GaltonBoard con una nueva distribución.
      *
@@ -112,12 +142,36 @@ public class GaltonBoardService {
      * @param nuevaDistribucion Mapa con la nueva distribución.
      * @return Mono<Void> señal de que la actualización ha finalizado.
      */
+    @SynchronizedExecution
     public Mono<Void> actualizarDistribucion(GaltonBoard galtonBoard, Map<String, Integer> nuevaDistribucion) {
-        galtonBoard.getDistribucion().setDatos(nuevaDistribucion);
+        if (distribucionActualizando.get()) {
+            System.out.println("Esperando a que se complete la actualización de la distribución antes de continuar...");
+            return esperarDistribucionActualizada()
+                    .then(Mono.defer(() -> actualizarDistribucion(galtonBoard, nuevaDistribucion))); // Reintentar después de esperar
+        }
 
-        return galtonBoardRepository.save(galtonBoard)
-                .doOnSuccess(v -> System.out.println("Distribución actualizada en el tablero " + galtonBoard.getId()))
-                .doOnError(e -> System.err.println("Error updating distribution: " + e.getMessage())).then();
+        distribucionActualizando.set(true); // Indicamos que se está actualizando la distribución
+
+        return esperarSimulacionCompletada()
+                .then(Mono.defer(() -> {
+                    galtonBoard.getDistribucion().setDatos(nuevaDistribucion);
+                    return galtonBoardRepository.save(galtonBoard)
+                            .doOnSuccess(v -> System.out.println("Distribución actualizada en el tablero " + galtonBoard.getId()))
+                            .doOnError(e -> System.err.println("Error actualizando distribución: " + e.getMessage()))
+                            .doFinally(signal -> distribucionActualizando.set(false)); // Liberamos el bloqueo al finalizar
+                })).then();
+    }
+    /**
+     * Metodo para esperar hasta que la actualización de la distribución esté completa.
+     */
+    public Mono<Void> esperarDistribucionActualizada() {
+        return Mono.defer(() -> {
+            if (distribucionActualizando.get()) {
+                System.out.println("Esperando a que se complete la actualización de la distribución...");
+                return Mono.delay(Duration.ofMillis(100)).then(esperarDistribucionActualizada());
+            }
+            return Mono.empty();
+        });
     }
 
     /**
@@ -138,22 +192,31 @@ public class GaltonBoardService {
      */
     public Mono<GaltonBoard> crearGaltonBoardParaFabrica(FabricaGauss fabrica) {
         GaltonBoard nuevoGaltonBoard = new GaltonBoard();
-        nuevoGaltonBoard.setNumBolas(100);  // Valor de ejemplo
-        nuevoGaltonBoard.setNumContenedores(10);  // Valor de ejemplo
+        nuevoGaltonBoard.setNumBolas(100);  // Número de bolas a simular
+        nuevoGaltonBoard.setNumContenedores(10);  // Número de contenedores
         nuevoGaltonBoard.setEstado("INICIADO");
 
         // Crear la distribución con el mismo número de contenedores que el GaltonBoard
         Distribucion distribucion = new Distribucion(nuevoGaltonBoard.getNumContenedores());
-        nuevoGaltonBoard.setDistribucion(distribucion); // Asigna la distribución correctamente
+        nuevoGaltonBoard.setDistribucion(distribucion);
+        nuevoGaltonBoard.setFabricaId(fabrica.getId());  // Asignar el ID de la fábrica al GaltonBoard
 
-        // Asignar el ID de la fábrica al GaltonBoard si tiene el campo fabricaId
-        nuevoGaltonBoard.setFabricaId(fabrica.getId());
-
-        // Guardar el GaltonBoard en la base de datos
+        // Guardar el GaltonBoard inicial en la base de datos
         return galtonBoardRepository.save(nuevoGaltonBoard)
-                .doOnSuccess(galtonBoard -> System.out.println("GaltonBoard creado para la fábrica: " + fabrica.getNombre()))
-                .doOnError(e -> System.err.println("Error al crear GaltonBoard para la fábrica: " + fabrica.getNombre() + " - " + e.getMessage()));
+                .flatMap(galtonBoardCreado -> {
+                    System.out.println("GaltonBoard creado para la fábrica: " + fabrica.getNombre());
+
+                    // Simular la caída de bolas y actualizar la distribución antes de continuar
+                    return simularCaidaDeBolas(galtonBoardCreado)
+                            .then(Mono.defer(() -> {
+                                // Guardar el GaltonBoard con la distribución actualizada
+                                return galtonBoardRepository.save(galtonBoardCreado)
+                                        .doOnSuccess(gb -> System.out.println("GaltonBoard actualizado con la distribución de bolas para la fábrica: " + fabrica.getNombre()));
+                            }));
+                })
+                .doOnError(e -> System.err.println("Error al crear o actualizar GaltonBoard para la fábrica: " + fabrica.getNombre() + " - " + e.getMessage()));
     }
+
 
 
     /**
