@@ -46,26 +46,43 @@ public class GaltonBoardService {
     }
 
     @SynchronizedExecution
-    public Mono<Void> simularCaidaDeBolas(GaltonBoard galtonBoard) {
+    public Mono<Void> simularCaidaDeBolas(GaltonBoard galtonBoard, double media, double desviacionEstandar) {
         if (procesandoSimulacion.get()) {
             System.out.println("Esperando a que se complete la simulación en curso...");
             return Mono.empty().delayElement(Duration.ofMillis(500))
-                    .then(simularCaidaDeBolas(galtonBoard)); // Retry después de una pequeña espera
+                    .then(simularCaidaDeBolas(galtonBoard, media, desviacionEstandar)); // Retry después de una pequeña espera
         }
 
         procesandoSimulacion.set(true);
         System.out.println("Iniciando simulación de caída de " + galtonBoard.getNumBolas() + " bolas en el tablero " + galtonBoard.getId());
 
+
+        int numContenedores = galtonBoard.getNumContenedores();
+        double mean = numContenedores / media; // Media para centrar la distribución en el tablero
+        double stdDev = numContenedores / desviacionEstandar; // Desviación estándar para control de dispersión
+
+        Random random = new Random();
         int numBolas = galtonBoard.getNumBolas();
         AtomicInteger numBolasProcesadas = new AtomicInteger(0);
 
         return Flux.range(0, numBolas)
                 .flatMap(i -> {
-                    int contenedorId = (int) (Math.random() * galtonBoard.getNumContenedores());
+                    // Generar un índice basado en una distribución normal
+                    int contenedorId = (int) Math.round(random.nextGaussian() * stdDev + mean);
+                    contenedorId = Math.max(0, Math.min(numContenedores - 1, contenedorId)); // Asegurar que esté en los límites
                     System.out.println("Bola #" + i + " cayó en el contenedor " + contenedorId);
 
+                    int finalContenedorId = contenedorId;
                     return galtonBoard.getDistribucion().agregarBola(contenedorId)
                             .doOnSuccess(msg -> System.out.println(msg))
+                            .doOnSuccess(msg -> {
+                                // Enviar mensaje a RabbitMQ indicando la bola agregada y su contenedor
+                                String mensaje = String.format("Bola #%d agregada al contenedor %d", i, finalContenedorId);
+                                rabbitMQService.enviarMensaje("queue_bolas", mensaje)
+                                        .doOnSuccess(v -> System.out.println("Notificación enviada a RabbitMQ: " + mensaje))
+                                        .doOnError(e -> System.err.println("Error enviando notificación a RabbitMQ: " + e.getMessage()))
+                                        .subscribe();
+                            })
                             .doOnError(e -> System.err.println("Error al agregar bola a la distribución: " + e.getMessage()));
                 })
                 .doOnNext(i -> {
@@ -124,15 +141,30 @@ public class GaltonBoardService {
      *
      * @param distribucion Mapa que representa la cantidad de bolas en cada contenedor.
      */
+    /**
+     * Muestra la distribución de bolas en cada contenedor en orden al finalizar la simulación.
+     *
+     * @param distribucion Mapa que representa la cantidad de bolas en cada contenedor.
+     */
     private void mostrarDistribucion(Map<String, Integer> distribucion) {
         System.out.println("\nDistribución de bolas en los contenedores:");
         int maxBolas = distribucion.values().stream().max(Integer::compareTo).orElse(1);
 
-        distribucion.forEach((contenedor, cantidad) -> {
-            int longitudBarra = (int) ((cantidad * 50) / (double) maxBolas); // Normalizamos a una barra de longitud máxima 50
-            String barra = "*".repeat(longitudBarra);
-            System.out.printf("%s: %s (%d bolas)%n", contenedor, barra, cantidad);
-        });
+        // Ordenamos el mapa por las claves, asumiendo que los nombres de los contenedores son "contenedor_0", "contenedor_1", etc.
+        distribucion.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey((a, b) -> {
+                    // Extraemos el número del contenedor para compararlos numéricamente
+                    int numA = Integer.parseInt(a.replace("contenedor_", ""));
+                    int numB = Integer.parseInt(b.replace("contenedor_", ""));
+                    return Integer.compare(numA, numB);
+                }))
+                .forEach(entry -> {
+                    String contenedor = entry.getKey();
+                    int cantidad = entry.getValue();
+                    int longitudBarra = (int) ((cantidad * 50) / (double) maxBolas); // Normalizamos a una barra de longitud máxima 50
+                    String barra = "*".repeat(longitudBarra);
+                    System.out.printf("%s: %s (%d bolas)%n", contenedor, barra, cantidad);
+                });
     }
 
     /**
@@ -190,10 +222,10 @@ public class GaltonBoardService {
      * @param fabrica La fábrica para la cual se creará el GaltonBoard.
      * @return Mono<GaltonBoard> el nuevo GaltonBoard creado.
      */
-    public Mono<GaltonBoard> crearGaltonBoardParaFabrica(FabricaGauss fabrica) {
+    public Mono<GaltonBoard> crearGaltonBoardParaFabrica(FabricaGauss fabrica, double media, double desviacionEstandar) {
         GaltonBoard nuevoGaltonBoard = new GaltonBoard();
         nuevoGaltonBoard.setNumBolas(100);  // Número de bolas a simular
-        nuevoGaltonBoard.setNumContenedores(10);  // Número de contenedores
+        nuevoGaltonBoard.setNumContenedores(12);  // Número de contenedores
         nuevoGaltonBoard.setEstado("INICIADO");
 
         // Crear la distribución con el mismo número de contenedores que el GaltonBoard
@@ -207,7 +239,7 @@ public class GaltonBoardService {
                     System.out.println("GaltonBoard creado para la fábrica: " + fabrica.getNombre());
 
                     // Simular la caída de bolas y actualizar la distribución antes de continuar
-                    return simularCaidaDeBolas(galtonBoardCreado)
+                    return simularCaidaDeBolas(galtonBoardCreado, media, desviacionEstandar)
                             .then(Mono.defer(() -> {
                                 // Guardar el GaltonBoard con la distribución actualizada
                                 return galtonBoardRepository.save(galtonBoardCreado)

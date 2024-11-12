@@ -1,5 +1,6 @@
 package org.main_java.parcial_2_concurrente.service.fabricaService;
 
+import jakarta.annotation.PostConstruct;
 import org.main_java.parcial_2_concurrente.aop.sync.SynchronizedExecution;
 import org.main_java.parcial_2_concurrente.domain.fabrica.FabricaGauss;
 import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.Maquina;
@@ -51,6 +52,12 @@ public class FabricaGaussService {
         this.galtonBoardService = galtonBoardService;
     }
 
+    @PostConstruct
+    public void iniciarAplicacion() {
+        iniciarListenerProgresoSimulacion();
+        iniciarListenerAlertas();
+    }
+
     public Mono<FabricaGaussDTO> createFabrica(FabricaGaussDTO fabricaGaussDTO) {
         FabricaGauss fabrica = mapToEntity(fabricaGaussDTO);
         return fabricaGaussRepository.save(fabrica)
@@ -91,6 +98,11 @@ public class FabricaGaussService {
 
     public Mono<Void> iniciarProduccionCompleta() {
         System.out.println("Iniciando producción completa en todas las fábricas.");
+        rabbitMQService.enviarMensaje("produccion_queue", "Inicio de producción");
+
+
+        double mediaDefault = (12 - 1) / 2.0; // Media
+        double desviacionEstandarDefault = mediaDefault / 1.5; // Desviación estándar
 
         return fabricaGaussRepository.count()
                 .flatMap(count -> {
@@ -100,12 +112,12 @@ public class FabricaGaussService {
                         // Crear y configurar MaquinaDistribucionNormal
                         MaquinaDistribucionNormal maquinaDistribucionNormal = new MaquinaDistribucionNormal();
                         maquinaDistribucionNormal.setTipo("MaquinaDistribucionNormal");
-                        maquinaDistribucionNormal.setMedia(5.0);
-                        maquinaDistribucionNormal.setDesviacionEstandar(0.3);
-                        maquinaDistribucionNormal.setMaximoValor(10);
+                        maquinaDistribucionNormal.setMedia(mediaDefault);
+                        maquinaDistribucionNormal.setDesviacionEstandar(desviacionEstandarDefault);
+                        maquinaDistribucionNormal.setMaximoValor(20);
                         maquinaDistribucionNormal.setGaltonBoard(null);  // Inicialmente sin GaltonBoard
 
-                        int numeroComponentesRequeridos = 10;
+                        int numeroComponentesRequeridos = 12;
                         maquinaDistribucionNormal.setNumeroComponentesRequeridos(numeroComponentesRequeridos);
 
                         // Crear componentes y recolectar sus IDs
@@ -143,7 +155,7 @@ public class FabricaGaussService {
                 .flatMap(fabrica -> {
                     System.out.println("Procesando fábrica: " + fabrica.getNombre());
 
-                    return obtenerOGenerarGaltonBoard(fabrica)
+                    return obtenerOGenerarGaltonBoard(fabrica, mediaDefault, desviacionEstandarDefault)
                             .flatMap(galtonBoard -> {
                                 System.out.println("GaltonBoard preparado para la fábrica: " + fabrica.getNombre());
 
@@ -163,7 +175,35 @@ public class FabricaGaussService {
                     return rabbitMQService.enviarMensaje("produccion_queue", mensaje)
                             .doOnSuccess(v -> System.out.println("Producción completa en todas las fábricas. Notificación enviada."));
                 }))
+                .then(verificarEstadoSimulacion())
                 .doOnError(e -> System.err.println("Error en iniciarProduccionCompleta: " + e.getMessage()));
+    }
+
+    /**
+     * Verifica el estado de la simulación usando recibirMensaje.
+     */
+    public Mono<Void> verificarEstadoSimulacion() {
+        return rabbitMQService.recibirMensaje("queue_bolas")
+                .doOnNext(mensaje -> System.out.println("ESTADO DE LA SIMULACION: " + mensaje))
+                .then();
+    }
+
+    /**
+     * Inicia un listener para recibir mensajes continuamente de RabbitMQ.
+     */
+    public void iniciarListenerProgresoSimulacion() {
+        rabbitMQService.iniciarListener("queue_bolas", mensaje -> {
+            System.out.println("PROGRESO DE SIMULACION RECIBIDO: " + mensaje);
+        });
+    }
+
+    /**
+     * Inicia un listener para recibir alertas de error.
+     */
+    public void iniciarListenerAlertas() {
+        rabbitMQService.iniciarListener("produccion_queue", mensaje -> {
+            System.out.println("ALERTA_[!]: " + mensaje);
+        });
     }
 
     /**
@@ -207,9 +247,9 @@ public class FabricaGaussService {
                 }));
     }
 
-    private Mono<GaltonBoard> obtenerOGenerarGaltonBoard(FabricaGauss fabrica) {
+    private Mono<GaltonBoard> obtenerOGenerarGaltonBoard(FabricaGauss fabrica, double media, double desviacionEstandar) {
         return galtonBoardService.obtenerGaltonBoardPorFabricaId(fabrica.getId())
-                .switchIfEmpty(galtonBoardService.crearGaltonBoardParaFabrica(fabrica)
+                .switchIfEmpty(galtonBoardService.crearGaltonBoardParaFabrica(fabrica, media , desviacionEstandar)
                         .flatMap(galtonBoard -> {
                             if (galtonBoard.getEstado() == null) {
                                 galtonBoard.setStatus(new GaltonBoardStatus("EN_PROGRESO", new HashMap<>()));

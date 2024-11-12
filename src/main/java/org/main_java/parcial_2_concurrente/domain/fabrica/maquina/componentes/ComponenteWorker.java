@@ -40,30 +40,30 @@ public class ComponenteWorker {
     }
 
     /**
-     * Obtiene un valor desde el GaltonBoard basado en la distribución de bolas en los contenedores y otros posibles factores.
+     * Obtiene un valor desde el GaltonBoard basado en la distribución de bolas en los contenedores.
      *
      * @param galtonBoard el GaltonBoard que contiene la distribución y configuración de la simulación.
+     * @param contenedorIndex el índice del contenedor específico para obtener un valor único para cada componente.
      * @return Mono<Double> el valor obtenido de la distribución.
      */
-    public Mono<Double> obtenerValorDesdeGaltonBoard(GaltonBoard galtonBoard) {
+    public Mono<Double> obtenerValorDesdeGaltonBoard(GaltonBoard galtonBoard, int contenedorIndex) {
         // Acceder a la distribución desde el GaltonBoard
         Map<String, Integer> datos = galtonBoard.getDistribucion().getDatos();
 
         int totalBolas = datos.values().stream().mapToInt(Integer::intValue).sum();
 
         if (totalBolas == 0) {
-            // En lugar de lanzar un error, devuelve un valor predeterminado o mensaje de advertencia.
             System.err.println("Advertencia: La distribución no contiene bolas.");
             return Mono.just(0.0); // O cualquier otro valor predeterminado.
         }
 
-        // Valor promedio basado en la cantidad de bolas en cada contenedor
-        double valorPromedio = datos.values().stream()
-                .mapToDouble(cantidad -> (double) cantidad / totalBolas)
-                .average()
-                .orElse(0.0);
+        // Obtener el valor específico de un contenedor por índice
+        String contenedorKey = "contenedor_" + contenedorIndex % datos.size();
+        Integer bolasEnContenedor = datos.getOrDefault(contenedorKey, 0);
 
-        // Escalar el valor promedio, si es necesario
-        return Mono.just(valorPromedio * 100);
+        // Escalar o manipular el valor de las bolas en el contenedor si es necesario
+        double valorEscalado = bolasEnContenedor * 10.0; // Factor de escala
+        return Mono.just(valorEscalado);
     }
+
 }

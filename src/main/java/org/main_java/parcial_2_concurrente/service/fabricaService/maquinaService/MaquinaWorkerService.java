@@ -167,9 +167,11 @@ public class MaquinaWorkerService {
 
                                     // Imprimir detalles de los componentes ensamblados
                                     processedComponents.forEach(componenteWorker -> {
+                                        componenteWorker.setEnsamblado(true);
                                         System.out.println("- Componente ID: " + componenteWorker.getComponente().getId() +
                                                 ", Tipo: " + componenteWorker.getComponente().getTipo() +
                                                 ", Estado ensamblado: " + componenteWorker.isEnsamblado());
+
                                     });
 
                                     return Mono.just(maquinaWorker);

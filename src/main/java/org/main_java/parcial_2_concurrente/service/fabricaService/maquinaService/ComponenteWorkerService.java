@@ -67,11 +67,16 @@ public class ComponenteWorkerService {
      * @return Mono<Double> el valor calculado.
      */
     public Mono<Double> calcularValor(ComponenteWorker componenteWorker, GaltonBoard galtonBoard) {
-        // Obtener la distribución desde el GaltonBoard
-        return componenteWorker.obtenerValorDesdeGaltonBoard(galtonBoard)
-                .doOnSuccess(valor -> System.out.println("Valor calculado para el componente " + componenteWorker.getComponente().getTipo() + ": " + valor))
+        // Usar un índice único para cada componente, como el hash del ID para mayor variación
+        int contenedorIndex = Math.abs(componenteWorker.getComponente().getId().hashCode());
+
+        // Obtener un valor único desde el GaltonBoard para el índice especificado
+        return componenteWorker.obtenerValorDesdeGaltonBoard(galtonBoard, contenedorIndex)
+                .doOnSuccess(valor -> System.out.println("Valor calculado para el componente "
+                        + componenteWorker.getComponente().getTipo() + ": " + valor))
                 .doOnError(e -> System.err.println("Error calculando el valor: " + e.getMessage()));
     }
+
 
     /**
      * Registra el valor calculado en el componente y guarda en la base de datos.
