@@ -11,7 +11,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-@Document
+@Document(collection = "maquinas")
 public class MaquinaDistribucionNormal extends Maquina {
 
     private double media;

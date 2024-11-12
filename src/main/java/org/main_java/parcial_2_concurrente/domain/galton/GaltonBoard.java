@@ -23,4 +23,5 @@ public class GaltonBoard {
     private String estado;          // Estado del tablero (ej., "EN_SIMULACION", "COMPLETADO")
     private Distribucion distribucion;  // Distribución de bolas en los contenedores
     private String fabricaId;
+    private GaltonBoardStatus status;
 }

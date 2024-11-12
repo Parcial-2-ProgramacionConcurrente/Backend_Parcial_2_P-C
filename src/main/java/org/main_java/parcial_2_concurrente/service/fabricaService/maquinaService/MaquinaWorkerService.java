@@ -46,8 +46,15 @@ public class MaquinaWorkerService {
      * @return Mono<MaquinaWorker> el MaquinaWorker existente o creado.
      */
     private Mono<MaquinaWorker> obtenerOCrearMaquinaWorker(Maquina maquina, GaltonBoard galtonBoard) {
+        if (maquina.getId() == null) {
+            // Log an error and return a Mono error if the Maquina ID is null
+            System.err.println("Error: Maquina ID is null for maquina of type " + maquina.getTipo());
+            return Mono.error(new IllegalArgumentException("Maquina ID must not be null"));
+        }
+
         return maquinaWorkerRepository.findById(maquina.getId())
                 .switchIfEmpty(Mono.defer(() -> {
+                    // If no MaquinaWorker exists, create a new one
                     MaquinaWorker nuevoMaquinaWorker = new MaquinaWorker();
                     nuevoMaquinaWorker.setMaquina(maquina);
                     nuevoMaquinaWorker.setComponenteWorkers(maquina.getComponentes().stream()
@@ -58,6 +65,7 @@ public class MaquinaWorkerService {
                 .doOnSuccess(mw -> System.out.println("MaquinaWorker obtenido/creado para la máquina " + maquina.getTipo()))
                 .doOnError(e -> System.err.println("Error al obtener o crear MaquinaWorker para " + maquina.getTipo() + ": " + e.getMessage()));
     }
+
 
     /**
      * Ensambla una máquina ejecutando cada ComponenteWorker asociado y registrando valores en función del GaltonBoard.

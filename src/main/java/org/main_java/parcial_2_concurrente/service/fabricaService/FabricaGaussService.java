@@ -4,19 +4,27 @@ import org.main_java.parcial_2_concurrente.domain.fabrica.FabricaGauss;
 import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.Maquina;
 import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.maquinas_especificas.MaquinaDistribucionNormal;
 import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoard;
+import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoardStatus;
 import org.main_java.parcial_2_concurrente.model.fabricaDTO.FabricaGaussDTO;
 import org.main_java.parcial_2_concurrente.repos.fabrica.FabricaGaussRepository;
+import org.main_java.parcial_2_concurrente.repos.fabrica.maquina.MaquinaRepository;
 import org.main_java.parcial_2_concurrente.service.fabricaService.maquinaService.MaquinaWorkerService;
 import org.main_java.parcial_2_concurrente.service.galtonService.GaltonBoardService;
 import org.main_java.parcial_2_concurrente.service.messaging.RabbitMQService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 @Service
 public class FabricaGaussService {
+
+    @Autowired
+    private MaquinaRepository maquinaRepository;
 
     private final FabricaGaussRepository fabricaGaussRepository;
     private final MaquinaWorkerService maquinaWorkerService;
@@ -71,11 +79,6 @@ public class FabricaGaussService {
                 .doOnError(e -> System.err.println("Error updating Fabrica: " + e.getMessage()));
     }
 
-    /**
-     * Inicia la producción completa en todas las fábricas.
-     *
-     * @return Mono<Void>
-     */
     public Mono<Void> iniciarProduccionCompleta() {
         System.out.println("Iniciando producción completa en todas las fábricas.");
 
@@ -84,19 +87,30 @@ public class FabricaGaussService {
                     if (count == 0) {
                         System.out.println("No se encontraron fábricas, inicializando fábricas predeterminadas.");
 
-                        // Crear una instancia de MaquinaDistribucionNormal con valores predeterminados
+                        // Crear y configurar la máquina
                         MaquinaDistribucionNormal maquinaDistribucionNormal = new MaquinaDistribucionNormal();
                         maquinaDistribucionNormal.setTipo("MaquinaDistribucionNormal");
-                        maquinaDistribucionNormal.setMedia(0.0);
-                        maquinaDistribucionNormal.setDesviacionEstandar(1.5);
+                        maquinaDistribucionNormal.setMedia(1.0);
+                        maquinaDistribucionNormal.setDesviacionEstandar(1.0);
                         maquinaDistribucionNormal.setMaximoValor(10);
+                        maquinaDistribucionNormal.setComponentes(new ArrayList<>());
 
-                        // Crear fábricas predeterminadas con la instancia de MaquinaDistribucionNormal
-                        List<FabricaGauss> fabricasPredeterminadas = List.of(
-                                new FabricaGauss(null, "Fábrica A", List.of(maquinaDistribucionNormal))
-                        );
+                        // Guardar la máquina en la base de datos
+                        return maquinaRepository.save(maquinaDistribucionNormal)
+                                .flatMap(maquinaGuardada -> {
+                                    // Verificar que el ID esté presente
+                                    if (maquinaGuardada.getId() == null) {
+                                        System.err.println("Error crítico: La máquina guardada no tiene un ID asignado.");
+                                        return Mono.error(new RuntimeException("La máquina guardada no tiene un ID asignado."));
+                                    }
 
-                        return fabricaGaussRepository.saveAll(fabricasPredeterminadas).then();
+                                    System.out.println("Máquina guardada con ID: " + maquinaGuardada.getId());
+
+                                    // Crear y guardar la fábrica con la máquina guardada
+                                    FabricaGauss fabrica = new FabricaGauss(null, "Fábrica A", List.of(maquinaGuardada));
+                                    return fabricaGaussRepository.save(fabrica)
+                                            .doOnSuccess(f -> System.out.println("Fábrica guardada con nombre: " + f.getNombre()));
+                                }).then();
                     }
                     return Mono.empty();
                 })
@@ -124,19 +138,22 @@ public class FabricaGaussService {
     }
 
 
-
-    /**
-     * Obtiene el GaltonBoard asociado a la fábrica o crea uno nuevo si es necesario.
-     *
-     * @param fabrica La fábrica para la cual se requiere un GaltonBoard.
-     * @return Mono<GaltonBoard> el GaltonBoard existente o generado.
-     */
     private Mono<GaltonBoard> obtenerOGenerarGaltonBoard(FabricaGauss fabrica) {
         return galtonBoardService.obtenerGaltonBoardPorFabricaId(fabrica.getId())
-                .switchIfEmpty(galtonBoardService.crearGaltonBoardParaFabrica(fabrica))
+                .switchIfEmpty(galtonBoardService.crearGaltonBoardParaFabrica(fabrica)
+                        .flatMap(galtonBoard -> {
+                            if (galtonBoard.getEstado() == null) {
+                                galtonBoard.setStatus(new GaltonBoardStatus("EN_PROGRESO", new HashMap<>()));
+                            }
+                            // Explicitly save the GaltonBoard to ensure it gets an ID
+                            return galtonBoardService.guardarGaltonBoard(galtonBoard);
+                        })
+                )
                 .doOnSuccess(galtonBoard -> System.out.println("GaltonBoard obtenido/creado para la fábrica: " + fabrica.getNombre()))
                 .doOnError(e -> System.err.println("Error al obtener/crear GaltonBoard para la fábrica: " + fabrica.getNombre() + ". Error: " + e.getMessage()));
     }
+
+
 
     private FabricaGaussDTO mapToDTO(FabricaGauss fabrica) {
         FabricaGaussDTO dto = new FabricaGaussDTO();

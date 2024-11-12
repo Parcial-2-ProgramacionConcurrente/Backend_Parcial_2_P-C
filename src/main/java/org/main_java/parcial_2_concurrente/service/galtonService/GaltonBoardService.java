@@ -89,8 +89,10 @@ public class GaltonBoardService {
                 .then();
     }
 
-
-
+    public Mono<GaltonBoard> guardarGaltonBoard(GaltonBoard galtonBoard) {
+        return galtonBoardRepository.save(galtonBoard)
+                .doOnSuccess(savedGaltonBoard -> System.out.println("GaltonBoard saved with ID: " + savedGaltonBoard.getId()));
+    }
 
 
     /**
@@ -119,7 +121,6 @@ public class GaltonBoardService {
      */
     public Mono<Void> actualizarDistribucion(GaltonBoard galtonBoard, Map<String, Integer> nuevaDistribucion) {
         galtonBoard.getDistribucion().setDatos(nuevaDistribucion);
-        status.actualizarDistribucion(nuevaDistribucion);
 
         return galtonBoardRepository.save(galtonBoard)
                 .doOnSuccess(v -> System.out.println("Distribución actualizada en el tablero " + galtonBoard.getId()))
