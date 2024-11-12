@@ -22,6 +22,6 @@ public class MaquinaWorker {
 
     @Id
     private String id;
-    private List<ComponenteWorker> componenteWorkers;
-    private Maquina maquina;
+    private List<String> componenteWorkerIds;
+    private String maquinaId;
 }

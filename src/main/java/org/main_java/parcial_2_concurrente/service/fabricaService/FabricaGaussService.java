@@ -2,12 +2,14 @@ package org.main_java.parcial_2_concurrente.service.fabricaService;
 
 import org.main_java.parcial_2_concurrente.domain.fabrica.FabricaGauss;
 import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.Maquina;
+import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.componentes.Componente;
 import org.main_java.parcial_2_concurrente.domain.fabrica.maquina.maquinas_especificas.MaquinaDistribucionNormal;
 import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoard;
 import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoardStatus;
 import org.main_java.parcial_2_concurrente.model.fabricaDTO.FabricaGaussDTO;
 import org.main_java.parcial_2_concurrente.repos.fabrica.FabricaGaussRepository;
 import org.main_java.parcial_2_concurrente.repos.fabrica.maquina.MaquinaRepository;
+import org.main_java.parcial_2_concurrente.repos.fabrica.maquina.componente.ComponenteRepository;
 import org.main_java.parcial_2_concurrente.service.fabricaService.maquinaService.MaquinaWorkerService;
 import org.main_java.parcial_2_concurrente.service.galtonService.GaltonBoardService;
 import org.main_java.parcial_2_concurrente.service.messaging.RabbitMQService;
@@ -19,12 +21,17 @@ import reactor.core.publisher.Flux;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 @Service
 public class FabricaGaussService {
 
     @Autowired
     private MaquinaRepository maquinaRepository;
+
+    @Autowired
+    private ComponenteRepository componenteRepository;
 
     private final FabricaGaussRepository fabricaGaussRepository;
     private final MaquinaWorkerService maquinaWorkerService;
@@ -87,18 +94,36 @@ public class FabricaGaussService {
                     if (count == 0) {
                         System.out.println("No se encontraron fábricas, inicializando fábricas predeterminadas.");
 
-                        // Crear y configurar la máquina
+                        // Crear y configurar MaquinaDistribucionNormal
                         MaquinaDistribucionNormal maquinaDistribucionNormal = new MaquinaDistribucionNormal();
                         maquinaDistribucionNormal.setTipo("MaquinaDistribucionNormal");
                         maquinaDistribucionNormal.setMedia(1.0);
                         maquinaDistribucionNormal.setDesviacionEstandar(1.0);
                         maquinaDistribucionNormal.setMaximoValor(10);
-                        maquinaDistribucionNormal.setComponentes(new ArrayList<>());
+                        maquinaDistribucionNormal.setGaltonBoard(null);  // Inicialmente sin GaltonBoard
 
-                        // Guardar la máquina en la base de datos
-                        return maquinaRepository.save(maquinaDistribucionNormal)
+                        int numeroComponentesRequeridos = 10;
+                        maquinaDistribucionNormal.setNumeroComponentesRequeridos(numeroComponentesRequeridos);
+
+                        // Crear componentes y recolectar sus IDs
+                        List<Componente> componentes = IntStream.range(0, numeroComponentesRequeridos)
+                                .mapToObj(i -> {
+                                    Componente componente = new Componente();
+                                    componente.setTipo("TipoComponente_" + i);
+                                    componente.setValorCalculado(0.0);
+                                    componente.setMaquinaId(maquinaDistribucionNormal.getId());
+                                    return componente;
+                                })
+                                .collect(Collectors.toList());
+
+                        return componenteRepository.saveAll(componentes)
+                                .map(Componente::getId)
+                                .collectList()
+                                .flatMap(componentesIds -> {
+                                    maquinaDistribucionNormal.setComponentesIds(componentesIds);
+                                    return maquinaRepository.save(maquinaDistribucionNormal);
+                                })
                                 .flatMap(maquinaGuardada -> {
-                                    // Verificar que el ID esté presente
                                     if (maquinaGuardada.getId() == null) {
                                         System.err.println("Error crítico: La máquina guardada no tiene un ID asignado.");
                                         return Mono.error(new RuntimeException("La máquina guardada no tiene un ID asignado."));
@@ -106,11 +131,11 @@ public class FabricaGaussService {
 
                                     System.out.println("Máquina guardada con ID: " + maquinaGuardada.getId());
 
-                                    // Crear y guardar la fábrica con la máquina guardada
-                                    FabricaGauss fabrica = new FabricaGauss(null, "Fábrica A", List.of(maquinaGuardada));
+                                    // Crear y guardar la fábrica
+                                    FabricaGauss fabrica = new FabricaGauss(null, "Fábrica A", List.of(maquinaGuardada.getId()));
                                     return fabricaGaussRepository.save(fabrica)
                                             .doOnSuccess(f -> System.out.println("Fábrica guardada con nombre: " + f.getNombre()));
-                                }).then();
+                                });
                     }
                     return Mono.empty();
                 })
@@ -118,13 +143,21 @@ public class FabricaGaussService {
                 .flatMap(fabrica -> {
                     System.out.println("Procesando fábrica: " + fabrica.getNombre());
 
+                    // Obtener o generar el GaltonBoard y luego asignarlo a la máquina
                     return obtenerOGenerarGaltonBoard(fabrica)
                             .flatMap(galtonBoard -> {
                                 System.out.println("GaltonBoard preparado para la fábrica: " + fabrica.getNombre());
 
-                                return galtonBoardService.simularCaidaDeBolas(galtonBoard)
-                                        .then(galtonBoardService.actualizarDistribucion(galtonBoard, galtonBoard.getDistribucion().getDatos()))
-                                        .then(maquinaWorkerService.iniciarTrabajo(fabrica.getMaquinas(), galtonBoard));
+                                // Asignar el GaltonBoard a la primera máquina de la fábrica y guardar el cambio
+                                return maquinaRepository.findById(fabrica.getMaquinasIds().get(0))
+                                        .flatMap(maquina -> {
+                                            maquina.setGaltonBoard(galtonBoard);  // Asignamos el GaltonBoard a la Maquina
+                                            return maquinaRepository.save(maquina);  // Guardar la Maquina con el GaltonBoard asignado
+                                        })
+                                        .then(galtonBoardService.simularCaidaDeBolas(galtonBoard)
+                                                .then(galtonBoardService.actualizarDistribucion(galtonBoard, galtonBoard.getDistribucion().getDatos()))
+                                                .then(maquinaWorkerService.iniciarTrabajo(fabrica.getMaquinasIds(), galtonBoard))
+                                        );
                             });
                 })
                 .collectList()
@@ -136,6 +169,7 @@ public class FabricaGaussService {
                 }))
                 .doOnError(e -> System.err.println("Error en iniciarProduccionCompleta: " + e.getMessage()));
     }
+
 
 
     private Mono<GaltonBoard> obtenerOGenerarGaltonBoard(FabricaGauss fabrica) {

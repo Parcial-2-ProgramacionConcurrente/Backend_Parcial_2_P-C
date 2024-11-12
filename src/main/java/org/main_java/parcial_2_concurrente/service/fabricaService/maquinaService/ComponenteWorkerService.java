@@ -30,35 +30,29 @@ public class ComponenteWorkerService {
     }
 
     /**
-     * Procesa todos los componentes, calculando y registrando los valores, luego envía una notificación.
-     *
-     * @param componentes Flujo de ComponenteWorker a procesar.
-     * @param galtonBoard El GaltonBoard que provee la distribución de valores.
-     * @return Mono<Void> señal de que el procesamiento ha finalizado.
-     */
-    public Mono<Void> procesarComponentes(Flux<ComponenteWorker> componentes, GaltonBoard galtonBoard) {
-        // Convertimos cada componente a una tarea asincrónica manejada por el executorService
-        return componentes
-                .flatMap(componenteWorker -> Mono.fromFuture(
-                        CompletableFuture.runAsync(() -> procesarComponente(componenteWorker, galtonBoard), executorService)
-                ))
-                .doOnError(e -> System.err.println("Error procesando componentes: " + e.getMessage()))
-                .then(enviarNotificacionDeCompletado());
-    }
-
-    /**
      * Procesa un único componente: calcula el valor y lo registra.
      *
      * @param componenteWorker El ComponenteWorker a procesar.
      * @param galtonBoard      El GaltonBoard que provee la distribución de valores.
+     * @return Mono<Void> que indica el final del procesamiento del componente.
      */
-    private void procesarComponente(ComponenteWorker componenteWorker, GaltonBoard galtonBoard) {
-        calcularValor(componenteWorker, galtonBoard)
+    public Mono<ComponenteWorker> procesarComponente(ComponenteWorker componenteWorker, GaltonBoard galtonBoard) {
+        if (componenteWorker.getComponente() == null) {
+            System.err.println("El componente asociado al ComponenteWorker es null, omitiendo procesamiento.");
+            return Mono.just(componenteWorker); // Devolver el componente sin procesar
+        }
+
+        return calcularValor(componenteWorker, galtonBoard)
                 .flatMap(valor -> registrarValor(componenteWorker.getComponente(), valor))
-                .doOnSuccess(v -> System.out.println("Componente procesado con valor registrado"))
-                .doOnError(e -> System.err.println("Error procesando componente: " + e.getMessage()))
-                .subscribe();
+                .doOnSuccess(v -> System.out.println("Componente procesado con valor registrado: " + componenteWorker.getComponente().getId()))
+                .doOnError(e -> System.err.println("Error procesando componente " + componenteWorker.getComponente().getId() + ": " + e.getMessage()))
+                .doFinally(signal -> System.out.println("Proceso finalizado para el componente: " + componenteWorker.getComponente().getId()))
+                .thenReturn(componenteWorker); // Devolver el componente procesado
     }
+
+
+
+
 
     /**
      * Calcula el valor del ComponenteWorker basado en la distribución del GaltonBoard.

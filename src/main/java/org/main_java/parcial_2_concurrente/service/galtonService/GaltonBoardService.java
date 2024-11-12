@@ -45,42 +45,34 @@ public class GaltonBoardService {
 
         int numBolas = galtonBoard.getNumBolas();
         AtomicInteger numBolasProcesadas = new AtomicInteger(0);
-        AtomicInteger[] contenedores = new AtomicInteger[galtonBoard.getNumContenedores()];
-
-        // Inicializar contenedores como AtomicInteger para hilos seguros
-        for (int i = 0; i < galtonBoard.getNumContenedores(); i++) {
-            contenedores[i] = new AtomicInteger(0);
-        }
 
         return Flux.range(0, numBolas)
-                .flatMap(i -> Mono.fromFuture(CompletableFuture.runAsync(() -> {
+                .flatMap(i -> {
                     int contenedorId = (int) (Math.random() * galtonBoard.getNumContenedores());
-                    contenedores[contenedorId].incrementAndGet(); // Incrementar el contenedor en el que cae la bola
                     System.out.println("Bola #" + i + " cayó en el contenedor " + contenedorId);
-                })))
+
+                    return galtonBoard.getDistribucion().agregarBola(contenedorId)
+                            .doOnSuccess(msg -> System.out.println(msg))
+                            .doOnError(e -> System.err.println("Error al agregar bola a la distribución: " + e.getMessage()));
+                })
                 .doOnNext(i -> {
                     numBolasProcesadas.incrementAndGet();
                     if (numBolasProcesadas.get() % 100 == 0 || numBolasProcesadas.get() == numBolas) {
                         System.out.println("Procesadas " + numBolasProcesadas + " bolas.");
-                        Map<String, Integer> datosDistribucion = new HashMap<>();
-                        for (int j = 0; j < contenedores.length; j++) {
-                            datosDistribucion.put("contenedor_" + j, contenedores[j].get());
-                        }
-                        mostrarDistribucion(datosDistribucion); // Muestra distribución actual en cada lote
                     }
                 })
                 .doOnComplete(() -> {
                     galtonBoard.setEstado("COMPLETADO");
                     System.out.println("Simulación completada en el tablero " + galtonBoard.getId());
 
-                    Map<String, Integer> datosFinales = new HashMap<>();
-                    for (int j = 0; j < contenedores.length; j++) {
-                        datosFinales.put("contenedor_" + j, contenedores[j].get());
-                    }
-                    mostrarDistribucion(datosFinales); // Mostrar distribución completa al final
+                    // Obtener y mostrar la distribución final
+                    galtonBoard.getDistribucion().obtenerDistribucion()
+                            .doOnSuccess(datosFinales -> mostrarDistribucion(datosFinales))
+                            .doOnError(e -> System.err.println("Error mostrando distribución final: " + e.getMessage()))
+                            .subscribe();
 
                     // Notificar finalización de la simulación
-                    enviarNotificacionSimulacionCompleta(galtonBoard.getId(), datosFinales)
+                    enviarNotificacionSimulacionCompleta(galtonBoard.getId(), galtonBoard.getDistribucion().getDatos())
                             .doOnSuccess(v -> System.out.println("Notificación de simulación completada enviada para GaltonBoard ID: " + galtonBoard.getId()))
                             .doOnError(e -> System.err.println("Error enviando notificación: " + e.getMessage()))
                             .subscribe();
@@ -88,6 +80,7 @@ public class GaltonBoardService {
                 .doOnError(e -> System.err.println("Error simulando la caída de bolas: " + e.getMessage()))
                 .then();
     }
+
 
     public Mono<GaltonBoard> guardarGaltonBoard(GaltonBoard galtonBoard) {
         return galtonBoardRepository.save(galtonBoard)
@@ -145,14 +138,23 @@ public class GaltonBoardService {
      */
     public Mono<GaltonBoard> crearGaltonBoardParaFabrica(FabricaGauss fabrica) {
         GaltonBoard nuevoGaltonBoard = new GaltonBoard();
-        nuevoGaltonBoard.setNumBolas(100);  // Valor ejemplo
-        nuevoGaltonBoard.setNumContenedores(10);  // Valor ejemplo
+        nuevoGaltonBoard.setNumBolas(100);  // Valor de ejemplo
+        nuevoGaltonBoard.setNumContenedores(10);  // Valor de ejemplo
         nuevoGaltonBoard.setEstado("INICIADO");
-        nuevoGaltonBoard.setDistribucion(new Distribucion()); // Crear una nueva Distribucion
+
+        // Crear la distribución con el mismo número de contenedores que el GaltonBoard
+        Distribucion distribucion = new Distribucion(nuevoGaltonBoard.getNumContenedores());
+        nuevoGaltonBoard.setDistribucion(distribucion); // Asigna la distribución correctamente
+
+        // Asignar el ID de la fábrica al GaltonBoard si tiene el campo fabricaId
+        nuevoGaltonBoard.setFabricaId(fabrica.getId());
+
+        // Guardar el GaltonBoard en la base de datos
         return galtonBoardRepository.save(nuevoGaltonBoard)
                 .doOnSuccess(galtonBoard -> System.out.println("GaltonBoard creado para la fábrica: " + fabrica.getNombre()))
-                .doOnError(e -> System.err.println("Error al crear GaltonBoard para la fábrica: " + e.getMessage()));
+                .doOnError(e -> System.err.println("Error al crear GaltonBoard para la fábrica: " + fabrica.getNombre() + " - " + e.getMessage()));
     }
+
 
     /**
      * Envía una notificación a RabbitMQ informando la finalización de la simulación.

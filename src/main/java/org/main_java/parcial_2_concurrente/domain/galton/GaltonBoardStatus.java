@@ -26,18 +26,4 @@ public class GaltonBoardStatus {
         this.estado = estado != null ? estado : "EN_PROGRESO"; // Asigna un valor por defecto si es null
         this.distribucionActual = distribucionActual != null ? distribucionActual : new HashMap<>();
     }
-
-    /**
-     * Metodo para actualizar la distribución actual del tablero.
-     * Este metodo reemplaza la distribución actual con la nueva distribución.
-     *
-     * @param nuevaDistribucion la nueva distribución de bolas en contenedores
-     */
-    public void actualizarDistribucion(Map<String, Integer> nuevaDistribucion) {
-        if (nuevaDistribucion != null) {
-            this.distribucionActual = nuevaDistribucion;
-        } else {
-            System.err.println("La nueva distribución es nula y no puede actualizarse.");
-        }
-    }
 }

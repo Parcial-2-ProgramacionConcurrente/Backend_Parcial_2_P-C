@@ -14,6 +14,6 @@ public class FabricaGaussDTO {
 
     private String id;
     private String nombre;
-    private List<Maquina> maquinas;
+    private List<String> maquinasIds;
 
 }

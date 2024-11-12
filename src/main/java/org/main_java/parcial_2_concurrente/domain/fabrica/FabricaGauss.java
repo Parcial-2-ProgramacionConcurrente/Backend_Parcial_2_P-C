@@ -22,5 +22,5 @@ public class FabricaGauss {
     @Id
     private String id;
     private String nombre;
-    private List<Maquina> maquinas;
+    private List<String> maquinasIds;
 }

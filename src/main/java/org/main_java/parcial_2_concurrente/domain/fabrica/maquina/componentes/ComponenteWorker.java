@@ -25,9 +25,19 @@ public class ComponenteWorker {
     @Id
     private String id;
     private Componente componente;
-    private MaquinaWorker maquinaWorker;
+    private String maquinaWorkerId;
     private GaltonBoard galtonBoard;
     private boolean trabajoCompletado;
+
+    private boolean ensamblado;
+
+    public ComponenteWorker(String id, Componente componente, String maquinaWorkerId, GaltonBoard galtonBoard, boolean trabajoCompletado) {
+        this.id = id;
+        this.trabajoCompletado = trabajoCompletado;
+        this.maquinaWorkerId = maquinaWorkerId;
+        this.galtonBoard = galtonBoard;
+        this.componente = componente;
+    }
 
     /**
      * Obtiene un valor desde el GaltonBoard basado en la distribución de bolas en los contenedores y otros posibles factores.
@@ -42,7 +52,9 @@ public class ComponenteWorker {
         int totalBolas = datos.values().stream().mapToInt(Integer::intValue).sum();
 
         if (totalBolas == 0) {
-            return Mono.error(new RuntimeException("La distribución no contiene bolas."));
+            // En lugar de lanzar un error, devuelve un valor predeterminado o mensaje de advertencia.
+            System.err.println("Advertencia: La distribución no contiene bolas.");
+            return Mono.just(0.0); // O cualquier otro valor predeterminado.
         }
 
         // Valor promedio basado en la cantidad de bolas en cada contenedor

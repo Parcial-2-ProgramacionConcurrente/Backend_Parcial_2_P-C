@@ -21,7 +21,7 @@ public abstract class Maquina {
     private String id;
     private String tipo;
     private int numeroComponentesRequeridos;
-    private List<Componente> componentes = new ArrayList<>();
+    private List<String> componentesIds = new ArrayList<>();
     private Map<String, Integer> distribucion;  // Distribución resultante de la operación
     private String estado;
     private GaltonBoard galtonBoard;
