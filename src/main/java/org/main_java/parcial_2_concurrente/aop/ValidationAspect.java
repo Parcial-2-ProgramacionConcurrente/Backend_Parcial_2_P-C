@@ -81,10 +81,6 @@ public class ValidationAspect {
         return password != null && password.matches("^(?=.*[A-Za-z])(?=.*\\d)(?=.*[@$!%*?&_])[A-Za-z\\d@$!%*?&_]{8,}$");
     }
 
-    private boolean isValidRol(String rol) {
-        return "admin".equalsIgnoreCase(rol) || "user".equalsIgnoreCase(rol) || "paleontologo".equalsIgnoreCase(rol);
-    }
-
     private Mono<String> obtenerContrasenaDeCredenciales(String credencialesId) {
         return credencialesRepository.findById(credencialesId)
                 .map(credenciales -> credenciales.getPassword())
