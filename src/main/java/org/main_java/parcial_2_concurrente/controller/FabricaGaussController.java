@@ -2,6 +2,7 @@ package org.main_java.parcial_2_concurrente.controller;
 
 import org.main_java.parcial_2_concurrente.model.fabricaDTO.FabricaGaussDTO;
 import org.main_java.parcial_2_concurrente.service.fabricaService.FabricaGaussService;
+import org.main_java.parcial_2_concurrente.service.galtonService.GaltonBoardService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +15,9 @@ public class FabricaGaussController {
 
     @Autowired
     private FabricaGaussService fabricaGaussService;
+
+    @Autowired
+    private GaltonBoardService galtonBoardService;
 
     @PostMapping
     public Mono<FabricaGaussDTO> createFabrica(@RequestBody FabricaGaussDTO fabricaGaussDTO) {
@@ -49,6 +53,51 @@ public class FabricaGaussController {
     @PostMapping("/iniciar-produccion")
     public Mono<Void> iniciarProduccionCompleta() {
         return fabricaGaussService.iniciarProduccionCompleta();
+    }
+
+    @PostMapping("/detenerProduccion")
+    public Mono<Void> detenerProduccion() {
+        return fabricaGaussService.detenerSimulacion();
+    }
+
+    @PostMapping("/simularCaidaBolas")
+    public Mono<Void> simularCaidaDeBolas(@RequestParam Integer numBolas) {
+        return galtonBoardService.simularCaidaDeBolas(numBolas);
+    }
+
+    @PostMapping("/ensamblarMaquina")
+    public Mono<Void> ensamblarMaquina(@RequestParam String maquinaId) {
+        return fabricaGaussService.ensamblarMaquina(maquinaId);
+    }
+
+    @GetMapping("/calcularDistribucion")
+    public Mono<Void> calcularDistribucion(@RequestParam String maquinaId) {
+        return fabricaGaussService.calcularDistribucion(maquinaId);
+    }
+
+    @GetMapping("/estadoDistribucion")
+    public Mono<Void> obtenerEstadoDistribucion(@RequestParam String galtonBoardId) {
+        return galtonBoardService.mostrarDistribucion(galtonBoardId);
+    }
+
+    @GetMapping("/estadoMaquina")
+    public Mono<Void> verEstadoMaquina(@RequestParam String maquinaId) {
+        return fabricaGaussService.verEstadoMaquina(maquinaId);
+    }
+
+    @PostMapping("/registrarComponente")
+    public Mono<Void> registrarComponente(@RequestParam String componenteId, @RequestParam double valor) {
+        return fabricaGaussService.registrarComponente(componenteId, valor);
+    }
+
+    @PostMapping("/gestionarErrores")
+    public Mono<Void> gestionarErrores() {
+        return fabricaGaussService.gestionarErrores();
+    }
+
+    @GetMapping("/monitorearRendimiento")
+    public Mono<Void> monitorearRendimiento() {
+        return fabricaGaussService.monitorearRendimiento();
     }
 }
 
