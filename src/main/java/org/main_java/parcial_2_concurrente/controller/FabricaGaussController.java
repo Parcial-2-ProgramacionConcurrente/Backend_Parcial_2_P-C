@@ -50,7 +50,17 @@ public class FabricaGaussController {
     public Mono<Void> iniciarProduccionCompleta() {
         return fabricaGaussService.iniciarProduccionCompleta();
     }
+    
 
+    @PostMapping("/detenerProduccion")
+    public Mono<Void> detenerProduccion() {
+        return fabricaGaussService.detenerSimulacion();
+    }
+
+    @PostMapping("/simularCaidaBolas")
+    public Mono<Void> simularCaidaDeBolas(@RequestParam Integer numBolas) {
+        return galtonBoardService.simularCaidaDeBolas(numBolas);
+    }
 
 }
 
@@ -105,5 +115,5 @@ public class FabricaGaussController {
     @GetMapping("/monitorearRendimiento")
     public Mono<Void> monitorearRendimiento() {
         return fabricaGaussService.monitorearRendimiento();
-    }   
+    }
  */
