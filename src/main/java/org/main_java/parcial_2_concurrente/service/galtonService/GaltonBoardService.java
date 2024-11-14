@@ -10,6 +10,7 @@ import org.main_java.parcial_2_concurrente.repos.galton.GaltonBoardRepository;
 import org.main_java.parcial_2_concurrente.service.messaging.RabbitMQService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
@@ -28,6 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Service
 public class GaltonBoardService {
 
+    private final WebClient webClient;
     private final GaltonBoardRepository galtonBoardRepository;
     private final RabbitMQService rabbitMQService;
     private final ExecutorService executorService = Executors.newFixedThreadPool(20);
@@ -35,9 +37,10 @@ public class GaltonBoardService {
     private final AtomicBoolean distribucionActualizando = new AtomicBoolean(false); // Indicador de actualización
 
 
-    public GaltonBoardService(GaltonBoardRepository galtonBoardRepository, RabbitMQService rabbitMQService) {
+    public GaltonBoardService(GaltonBoardRepository galtonBoardRepository, RabbitMQService rabbitMQService, WebClient.Builder webClientBuilder) {
         this.galtonBoardRepository = galtonBoardRepository;
         this.rabbitMQService = rabbitMQService;
+        this.webClient = webClientBuilder.baseUrl("http://localhost:8080/api/galtonboard").build();
     }
 
     @SynchronizedExecution
@@ -128,16 +131,16 @@ public class GaltonBoardService {
                     numBolasProcesadas.incrementAndGet();
                     if (numBolasProcesadas.get() % 100 == 0 || numBolasProcesadas.get() == numBolas) {
                         System.out.println("Procesadas " + numBolasProcesadas + " bolas.");
+                        this.webClient.post()
+                                .uri("/bolasPorContenedor?galtonBoardId=" + galtonBoard.getId())
+                                .retrieve()
+                                .bodyToMono(Map.class)
+                                .subscribe();
                     }
                 })
                 .doOnComplete(() -> {
                     galtonBoard.setEstado("COMPLETADO");
                     System.out.println("Simulación completada en el tablero " + galtonBoard.getId());
-
-                    galtonBoard.getDistribucion().obtenerDistribucion()
-                            .doOnSuccess(this::mostrarDistribucion)
-                            .doOnError(e -> System.err.println("Error mostrando distribución final: " + e.getMessage()))
-                            .subscribe();
 
                     galtonBoardRepository.save(galtonBoard)
                             .doOnSuccess(savedGaltonBoard -> System.out.println("GaltonBoard actualizado en la base de datos para el tablero " + savedGaltonBoard.getId()))
@@ -149,11 +152,22 @@ public class GaltonBoardService {
                             .doOnError(e -> System.err.println("Error enviando notificación: " + e.getMessage()))
                             .subscribe();
 
+                    this.webClient.post()
+                            .uri("/mostrarDistribucion?galtonBoardId=" + galtonBoard.getId())
+                            .retrieve()
+                            .bodyToMono(Map.class)
+                            .subscribe();
+
                     executorService.shutdown(); // Cerramos el ExecutorService al finalizar
                 })
                 .doOnError(e -> System.err.println("Error simulando la caída de bolas: " + e.getMessage()))
                 .doFinally(signal -> procesandoSimulacion.set(false)) // Liberamos el bloqueo al finalizar
                 .then();
+    }
+
+
+    public Mono<GaltonBoard> obtenerGaltonBoardPorId(String id) {
+        return galtonBoardRepository.findById(id);
     }
 
 
@@ -183,14 +197,13 @@ public class GaltonBoardService {
      *
      * @param distribucion Mapa que representa la cantidad de bolas en cada contenedor.
      */
-    private void mostrarDistribucion(Map<String, Integer> distribucion) {
+    public Mono<Map<String, Integer>> mostrarDistribucion(Map<String, Integer> distribucion) {
         System.out.println("\nDistribución de bolas en los contenedores:");
         int maxBolas = distribucion.values().stream().max(Integer::compareTo).orElse(1);
 
-        // Ordenamos el mapa por las claves, asumiendo que los nombres de los contenedores son "contenedor_0", "contenedor_1", etc.
+        // Ordenamos el mapa por las claves
         distribucion.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey((a, b) -> {
-                    // Extraemos el número del contenedor para compararlos numéricamente
                     int numA = Integer.parseInt(a.replace("contenedor_", ""));
                     int numB = Integer.parseInt(b.replace("contenedor_", ""));
                     return Integer.compare(numA, numB);
@@ -198,10 +211,12 @@ public class GaltonBoardService {
                 .forEach(entry -> {
                     String contenedor = entry.getKey();
                     int cantidad = entry.getValue();
-                    int longitudBarra = (int) ((cantidad * 50) / (double) maxBolas); // Normalizamos a una barra de longitud máxima 50
+                    int longitudBarra = (int) ((cantidad * 50) / (double) maxBolas);
                     String barra = "*".repeat(longitudBarra);
                     System.out.printf("%s: %s (%d bolas)%n", contenedor, barra, cantidad);
                 });
+
+        return Mono.just(distribucion);
     }
 
     /**
