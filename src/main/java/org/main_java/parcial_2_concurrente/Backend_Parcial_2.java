@@ -46,7 +46,7 @@ public class Backend_Parcial_2 implements CommandLineRunner {
                         registrarNuevoUsuario(
                                 authService,
                                 "Administrador", "ApellidoA", "ApellidoB", "admin@gmail.com", 123456789,
-                                "Calle Principal 123", "a12345_67", "admin"
+                                    "Calle Principal 123", "a12345_67", "admin"
                         ).doOnError(error -> System.err.println("Error registrando Administrador: " + error.getMessage())),
 
                         registrarNuevoUsuario(

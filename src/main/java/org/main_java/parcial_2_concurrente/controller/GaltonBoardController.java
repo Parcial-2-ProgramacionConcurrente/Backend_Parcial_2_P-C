@@ -40,4 +40,5 @@ public class GaltonBoardController {
                 .defaultIfEmpty(ResponseEntity.notFound().build());
     }
 
+
 }
