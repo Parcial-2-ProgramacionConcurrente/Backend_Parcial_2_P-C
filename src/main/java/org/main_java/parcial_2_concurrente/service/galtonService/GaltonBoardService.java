@@ -4,25 +4,19 @@ import org.main_java.parcial_2_concurrente.aop.sync.SynchronizedExecution;
 import org.main_java.parcial_2_concurrente.domain.fabrica.FabricaGauss;
 import org.main_java.parcial_2_concurrente.domain.galton.Distribucion;
 import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoard;
-import org.main_java.parcial_2_concurrente.domain.galton.GaltonBoardStatus;
 import org.main_java.parcial_2_concurrente.model.galtonDTO.GaltonBoardDTO;
 import org.main_java.parcial_2_concurrente.repos.galton.GaltonBoardRepository;
 import org.main_java.parcial_2_concurrente.service.messaging.RabbitMQService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 import reactor.core.publisher.Flux;
 import reactor.core.scheduler.Schedulers;
-
 import java.time.Duration;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
