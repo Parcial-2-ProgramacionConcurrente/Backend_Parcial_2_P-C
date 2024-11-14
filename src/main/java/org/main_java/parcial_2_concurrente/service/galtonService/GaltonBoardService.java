@@ -142,11 +142,6 @@ public class GaltonBoardService {
                     galtonBoard.setEstado("COMPLETADO");
                     System.out.println("Simulación completada en el tablero " + galtonBoard.getId());
 
-                    galtonBoard.getDistribucion().obtenerDistribucion()
-                            .doOnSuccess(this::mostrarDistribucion)
-                            .doOnError(e -> System.err.println("Error mostrando distribución final: " + e.getMessage()))
-                            .subscribe();
-
                     galtonBoardRepository.save(galtonBoard)
                             .doOnSuccess(savedGaltonBoard -> System.out.println("GaltonBoard actualizado en la base de datos para el tablero " + savedGaltonBoard.getId()))
                             .doOnError(e -> System.err.println("Error guardando el GaltonBoard actualizado: " + e.getMessage()))
