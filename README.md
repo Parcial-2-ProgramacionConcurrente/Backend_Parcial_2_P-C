@@ -52,7 +52,14 @@ BACKEND:
 
 # Introducción
 
-El sistema de monitoreo de Jurassic Park es un backend avanzado desarrollado en Spring WebFlux con una base de datos reactiva en MongoDB y soporte de mensajería asíncrona con RabbitMQ. Su propósito es gestionar en tiempo real la actividad y el estado de salud de dinosaurios dentro de un parque temático, utilizando sensores de frecuencia cardíaca, movimiento y temperatura. Este sistema está diseñado para ofrecer una respuesta rápida y escalable ante eventos críticos, como cambios en la salud de los dinosaurios o interacciones entre ellos. Además, el sistema incluye una mecánica de envejecimiento en tiempo real, junto con un ecosistema reactivo en el que los dinosaurios interactúan según su tipo, alimentación, y entorno.
+Este proyecto tiene como objetivo simular el funcionamiento de un **Galton Board**, un dispositivo diseñado para demostrar cómo las bolas, al caer rebotando entre clavos y acumulándose en contenedores, forman una distribución en forma de campana de Gauss. Utilizando tecnologías modernas como **Spring WebFlux** y **MongoDB Reactivo**, el sistema permite gestionar datos de forma asíncrona y no bloqueante, ofreciendo una experiencia fluida y eficiente para modelar tanto el comportamiento físico de las bolas como la visualización en tiempo real de su distribución final.
+
+El diseño del sistema incorpora varios aspectos y patrones avanzados que mejoran su robustez, escalabilidad y mantenibilidad. Por ejemplo, a través de la programación orientada a aspectos (AOP), se manejan de forma centralizada tareas como la validación de datos, el monitoreo de rendimiento y la gestión de errores. Esto permite que el sistema sea confiable y fácil de depurar, incluso en escenarios complejos. Además, se emplean patrones arquitectónicos como **Dependency Injection**, **Observer** y **Repository**, que facilitan la modularidad, la reutilización y la separación de responsabilidades.
+
+La implementación reactiva no solo optimiza el uso de recursos, sino que también garantiza que el sistema pueda manejar grandes volúmenes de datos de manera eficiente. Este enfoque reactivo se combina con una arquitectura bien estructurada, que incluye una capa de servicios dedicada, mapeos DTO para simplificar la transferencia de datos y un uso extensivo de técnicas concurrentes para asegurar la consistencia de los datos.
+
+En resumen, este proyecto no solo es una representación visual de un fenómeno físico, sino también un ejemplo de cómo construir sistemas modernos utilizando herramientas y principios de desarrollo avanzados. Con un enfoque en la escalabilidad y el rendimiento, el Galton Board reactivo se posiciona como una solución innovadora y educativa dentro del ámbito de las aplicaciones concurrentes y reactivas.
+
 
 ---
 
