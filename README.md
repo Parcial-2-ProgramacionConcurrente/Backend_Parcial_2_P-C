@@ -2,9 +2,9 @@
 
 # LINKS
 
-FRONTEND: 
+FRONTEND: https://github.com/Parcial-2-ProgramacionConcurrente/Frontend-Parcial-2
 
-BACKEND: 
+BACKEND: https://github.com/Parcial-2-ProgramacionConcurrente/Backend_Parcial_2_P-C
 
 ---
 
