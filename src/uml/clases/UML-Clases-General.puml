@@ -102,52 +102,143 @@ package domain {
 
 ' === PAQUETE SERVICE ===
 package service {
+
     class FabricaGaussService {
-        - FabricaGaussRepository fabricaGaussRepository
-        - GaltonBoardService galtonBoardService
-        - MaquinaWorkerService maquinaWorkerService
-        - RabbitMQService rabbitMQService
-        + iniciarProduccionCompleta(): Mono<Void> ' Método principal
+
+      - MaquinaRepository maquinaRepository
+      - ComponenteRepository componenteRepository
+      - FabricaGaussRepository fabricaGaussRepository
+      - MaquinaWorkerService maquinaWorkerService
+      - RabbitMQService rabbitMQService
+      - GaltonBoardService galtonBoardService
+
+      + void iniciarAplicacion()
+      + Mono<FabricaGaussDTO> createFabrica(FabricaGaussDTO fabricaGaussDTO)
+      + Flux<FabricaGaussDTO> findAllFabricas()
+      + Mono<FabricaGaussDTO> findFabricaById(String id)
+      + Mono<Void> deleteFabricaById(String id)
+      + Mono<FabricaGaussDTO> updateFabrica(String id, FabricaGaussDTO fabricaGaussDTO)
+      + Mono<Void> iniciarProduccionCompleta()
+      + Mono<Void> verificarEstadoSimulacion()
+      + void iniciarListenerProgresoSimulacion()
+      + void iniciarListenerAlertas()
+      + Mono<Void> actualizarComponentesConDistribucion(String maquinaId, GaltonBoard galtonBoard)
+      - Mono<GaltonBoard> obtenerOGenerarGaltonBoard(FabricaGauss fabrica, double media, double desviacionEstandar)
+      - FabricaGaussDTO mapToDTO(FabricaGauss fabrica)
+      - FabricaGauss mapToEntity(FabricaGaussDTO fabricaGaussDTO)
     }
+
 
     class GaltonBoardService {
-        - GaltonBoardRepository galtonBoardRepository
-        - RabbitMQService rabbitMQService
-        + simularCaidaDeBolas(Integer numBolas): Mono<Void>
-        + actualizarDistribucion(GaltonBoard, Map<String, Integer>): Mono<Void>
-        + mostrarDistribucion(Integer galtonBoardId): Mono<DistribucionDTO>
-    }
+
+      -WebClient webClient
+      -GaltonBoardRepository galtonBoardRepository
+      -RabbitMQService rabbitMQService
+      -ExecutorService executorService
+      -AtomicBoolean procesandoSimulacion
+      -AtomicBoolean distribucionActualizando
+
+      + GaltonBoardService(galtonBoardRepository: GaltonBoardRepository, rabbitMQService: RabbitMQService, webClientBuilder: WebClient.Builder)
+      + simularCaidaDeBolas(galtonBoard: GaltonBoard, media: double, desviacionEstandar: double): Mono<Void>
+      + obtenerGaltonBoardPorId(id: String): Mono<GaltonBoard>
+      + esperarSimulacionCompletada(): Mono<Void>
+      + guardarGaltonBoard(galtonBoard: GaltonBoard): Mono<GaltonBoard>
+      + mostrarDistribucion(distribucion: Map<String, Integer>): Mono<Map<String, Integer>>
+      + actualizarDistribucion(galtonBoard: GaltonBoard, nuevaDistribucion: Map<String, Integer>): Mono<Void>
+      + esperarDistribucionActualizada(): Mono<Void>
+      + obtenerGaltonBoardPorFabricaId(fabricaId: String): Mono<GaltonBoard>
+      + crearGaltonBoardParaFabrica(fabrica: FabricaGauss, media: double, desviacionEstandar: double): Mono<GaltonBoard>
+      - enviarNotificacionSimulacionCompleta(galtonBoardId: String, distribucion: Map<String, Integer>): Mono<Void>
+      - mapToDTO(galtonBoard: GaltonBoard): GaltonBoardDTO
+      - mapToEntity(galtonBoardDTO: GaltonBoardDTO): GaltonBoard
+      }
+
 
     class MaquinaWorkerService {
-        - MaquinaWorkerRepository maquinaWorkerRepository
-        - ComponenteWorkerService componenteWorkerService
-        - RabbitMQService rabbitMQService
-        + iniciarTrabajo(Maquina, GaltonBoard): Mono<Void>
-        + ensamblarMaquina(MaquinaWorker): Mono<Void>
-        + calcularDistribucion(MaquinaWorker): Mono<Map<String, Integer>>
+        - componenteWorkerRepository: ComponenteWorkerRepository
+        - maquinaWorkerRepository: MaquinaWorkerRepository
+        - maquinaRepository: MaquinaRepository
+        - galtonBoardRepository: GaltonBoardRepository
+        - componenteWorkerService: ComponenteWorkerService
+        - galtonBoardService: GaltonBoardService
+        - fabricaGaussService: FabricaGaussService
+
+        + iniciarTrabajo(maquinasIds: List<String>, galtonBoard: GaltonBoard): Mono<Void>
+        + obtenerOCrearMaquinaWorker(maquina: Maquina, galtonBoard: GaltonBoard): Mono<MaquinaWorker>
+        + ensamblarMaquina(maquinaWorker: MaquinaWorker): Mono<Void>
+        + obtenerComponenteWorkers(componenteWorkerIds: List<String>): Mono<List<ComponenteWorker>>
     }
+
 
     class ComponenteWorkerService {
-        - ComponenteRepository componenteRepository
-        - RabbitMQService rabbitMQService
-        + calcularValor(ComponenteWorker): Mono<Double>
-        + registrarValor(Componente, double valor): Mono<Void>
+        - componenteRepository: ComponenteRepository
+        - rabbitMQService: RabbitMQService
+        - galtonBoardService: GaltonBoardService
+        - executorService: ExecutorService
+
+        + procesarComponente(componenteWorker: ComponenteWorker, galtonBoard: GaltonBoard): Mono<ComponenteWorker>
+        + calcularValor(componenteWorker: ComponenteWorker, galtonBoard: GaltonBoard): Mono<Double>
+        + registrarValor(componente: Componente, valor: double): Mono<Void>
+        - enviarNotificacionDeCompletado(): Mono<Void>
     }
+
 
     class RabbitMQService {
-        + enviarMensaje(String queue, String mensaje): Mono<Void>
-        + recibirMensaje(String queue): Mono<String>
+        - rabbitTemplate: RabbitTemplate
+        - messageListenerContainer: MessageListenerContainer
+        - executorService: ExecutorService
+        - messageSink: Sinks.Many<String>
+
+        + enviarMensaje(queue: String, mensaje: String): Mono<Void>
+        + recibirMensaje(queue: String): Mono<String>
+        + iniciarListener(queueName: String, callback: Consumer<String>): void
+        + obtenerMensajesRecibidos(): Flux<String>
+        - shutdown(): void
     }
 
-    ' Relaciones de servicios con descripciones
-    FabricaGaussService --> GaltonBoardService : "Llama a simularCaidaDeBolas() para iniciar la simulación de bolas"
-    FabricaGaussService --> MaquinaWorkerService : "Inicia el ensamblaje de la máquina llamando a iniciarTrabajo()"
-    MaquinaWorkerService --> ComponenteWorkerService : "Asigna cálculo de valores a ComponenteWorkers"
-    MaquinaWorkerService --> MaquinaWorker : "Crea y ejecuta MaquinaWorkers para ensamblaje"
-    ComponenteWorkerService --> Componente : "Guarda valores calculados en los componentes"
-    FabricaGaussService --> RabbitMQService : "Envía mensajes para sincronización"
-    GaltonBoardService --> RabbitMQService : "Envía y recibe mensajes de sincronización"
-    MaquinaWorkerService --> RabbitMQService : "Coordina ensamblaje usando colas de mensajes"
+
+    FabricaGaussService --> FabricaGaussRepository : "Accede a la base de datos para gestionar FabricaGauss"
+    FabricaGaussService --> MaquinaRepository : "Gestiona datos de las máquinas asociadas"
+    FabricaGaussService --> ComponenteRepository : "Administra componentes de la fábrica"
+    FabricaGaussService --> MaquinaWorkerService : "Asigna y coordina trabajo de las máquinas"
+    FabricaGaussService --> RabbitMQService : "Envía eventos de la fábrica a RabbitMQ"
+    FabricaGaussService --> GaltonBoardService : "Llama a métodos para simular tableros de Galton"
+    FabricaGaussService --> FabricaGaussDTO : "Convierte FabricaGauss a DTO"
+    FabricaGaussService --> FabricaGauss : "Manipula entidades FabricaGauss"
+    FabricaGaussService --> GaltonBoard : "Asocia tableros de Galton a la fábrica"
+
+    GaltonBoardService --> GaltonBoardRepository : "Accede a la base de datos para gestionar tableros"
+    GaltonBoardService --> RabbitMQService : "Notifica eventos de simulación a RabbitMQ"
+    GaltonBoardService --> GaltonBoard : "Gestiona lógica y estado de tableros"
+    GaltonBoardService --> GaltonBoardDTO : "Convierte GaltonBoard a DTO"
+    GaltonBoardService --> Distribucion : "Manipula distribuciones de bolas"
+    GaltonBoardService --> FabricaGauss : "Asocia tableros con fábricas"
+    GaltonBoardService --> WebClient : "Llama a otros servicios para datos de tableros"
+
+    MaquinaWorkerService --> ComponenteWorkerRepository
+    MaquinaWorkerService --> MaquinaWorkerRepository
+    MaquinaWorkerService --> MaquinaRepository
+    MaquinaWorkerService --> GaltonBoardRepository
+    MaquinaWorkerService --> ComponenteWorkerService
+    MaquinaWorkerService --> GaltonBoardService
+    MaquinaWorkerService --> FabricaGaussService
+    MaquinaWorkerService ..> Maquina
+    MaquinaWorkerService ..> MaquinaWorker
+    MaquinaWorkerService ..> ComponenteWorker
+    MaquinaWorkerService ..> GaltonBoard
+
+    ComponenteWorkerService --> ComponenteRepository
+    ComponenteWorkerService --> RabbitMQService
+    ComponenteWorkerService --> GaltonBoardService
+    ComponenteWorkerService ..> ComponenteWorker
+    ComponenteWorkerService ..> GaltonBoard
+    ComponenteWorkerService ..> Componente
+
+    RabbitMQService --> RabbitTemplate
+    RabbitMQService --> MessageListenerContainer
+    RabbitMQService --> Sinks
+    RabbitMQService ..> Flux
+    RabbitMQService ..> Mono
 }
 
 ' === PAQUETE AOP ===
@@ -175,11 +266,93 @@ package aop {
 
 ' === PAQUETE CONTROLLER ===
 package controller {
-    class FabricaGaussController {
-        + iniciarProduccionCompleta(): Mono<Void>
+
+    class AuthController {
+        - authService: AuthService
+        --
+        + AuthController(authService: AuthService)
+        + login(loginRequest: LoginRequestDTO): Mono<ResponseEntity<AuthResponseDTO>>
+        + register(registerRequest: RegisterRequestDTO): Mono<ResponseEntity<AuthResponseDTO>>
     }
 
-    FabricaGaussController --> FabricaGaussService : "Controla la iniciación completa de la producción"
+
+    class FabricaGaussController {
+            - fabricaGaussService: FabricaGaussService
+            - galtonBoardService: GaltonBoardService
+            --
+            + findAllFabricas(): Flux<FabricaGaussDTO>
+            + findFabricaById(id: String): Mono<ResponseEntity<FabricaGaussDTO>>
+            - mapToDTO(galtonBoard: GaltonBoard): GaltonBoardDTO
+            + obtenerGaltonBoardPorFabricaId(id: String): Mono<ResponseEntity<GaltonBoardDTO>>
+            + iniciarProduccionCompleta(): Mono<Void>
+        }
+
+
+    class GaltonBoardController {
+        - galtonBoardService: GaltonBoardService
+        --
+        + GaltonBoardController(galtonBoardService: GaltonBoardService)
+        + bolasPorContenedor(galtonBoardId: String): Mono<ResponseEntity<Map<String, Integer>>>
+        + mostrarDistribucion(galtonBoardId: String): Mono<ResponseEntity<Map<String, Integer>>>
+    }
+
+    class HtmxErrorController {
+            - errorAttributes: ErrorAttributes
+            --
+            + HtmxErrorController(errorAttributes: ErrorAttributes)
+            + errorWebExceptionHandler(): ErrorWebExceptionHandler
+        }
+
+
+    class RabbitMQMessageController {
+        - rabbitMQService: RabbitMQService
+        --
+        + RabbitMQMessageController(rabbitMQService: RabbitMQService)
+        + getReceivedMessages(): Flux<String>
+    }
+
+    class UsuarioController {
+        - usuarioService: UsuarioService
+        --
+        + getAll(): Flux<Usuario>
+        + getById(id: String): Mono<ResponseEntity<Usuario>>
+        + create(usuarioDTO: UsuarioDTO): Mono<UsuarioDTO>
+        + update(id: String, usuarioActualizadoDTO: UsuarioDTO): Mono<ResponseEntity<UsuarioDTO>>
+        + delete(id: String): Mono<ResponseEntity<Void>>
+    }
+
+
+    class WebController {
+        --
+        + index(): Mono<String>
+    }
+
+
+    AuthController --> AuthService
+    AuthController --> LoginRequestDTO
+    AuthController --> RegisterRequestDTO
+    AuthController --> AuthResponseDTO
+
+    FabricaGaussController --> FabricaGaussService
+    FabricaGaussController --> GaltonBoardService
+    FabricaGaussController --> FabricaGaussDTO
+    FabricaGaussController --> GaltonBoardDTO
+    FabricaGaussController --> GaltonBoard
+
+    GaltonBoardController --> GaltonBoardService
+    GaltonBoardService --> GaltonBoard
+    GaltonBoard --> Distribucion
+
+    HtmxErrorController --> ErrorAttributes
+    HtmxErrorController --> ErrorWebExceptionHandler
+
+    RabbitMQMessageController --> RabbitMQService
+
+    UsuarioController --> UsuarioService
+    UsuarioController --> Usuario
+    UsuarioController --> UsuarioDTO
+
+
 }
 
 ' === PAQUETE REPOSITORY ===
@@ -243,3 +416,4 @@ dto.GaltonBoardDTO <.. domain.GaltonBoard
 dto.MaquinaDTO <.. domain.Maquina
 dto.DistribucionDTO <.. domain.Distribucion
 @enduml
+
